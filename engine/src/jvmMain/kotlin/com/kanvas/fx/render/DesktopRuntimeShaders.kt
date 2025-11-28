@@ -1,0 +1,134 @@
+package com.kanvas.fx.render
+
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Shader
+import androidx.compose.ui.graphics.ShaderBrush
+import androidx.compose.ui.graphics.asComposeShader
+import org.jetbrains.skia.Data
+import org.jetbrains.skia.RuntimeEffect
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
+
+/**
+ * Enables Skia RuntimeEffect shader code execution for Compose Desktop/JVM.
+ */
+fun AssetRegistry.enableDesktopRuntimeShaders() {
+    registerRuntimeShaderBrushFactory(DesktopRuntimeShaderBrushFactory)
+}
+
+private object DesktopRuntimeShaderBrushFactory : RuntimeShaderBrushFactory {
+    private val effectCache = mutableMapOf<String, RuntimeEffect>()
+
+    override fun create(
+        shader: ShaderAsset,
+        geometry: PrimitiveGeometry,
+        uniforms: Map<String, ShaderUniform>,
+        context: RenderContext?,
+    ): Brush? {
+        val runtime = when (val source = shader.source) {
+            is ShaderSource.SkiaRuntime -> source
+            is ShaderSource.Text -> ShaderSource.SkiaRuntime(source.value, uniforms.keys.toList())
+            is ShaderSource.ExternalDsl -> return null
+        }
+        return RuntimeEffectBrush(
+            code = runtime.code,
+            uniformOrder = runtime.uniformOrder,
+            geometry = geometry,
+            uniforms = uniforms,
+            context = context,
+            effectProvider = { code -> effectCache.getOrPut(code) { RuntimeEffect.makeForShader(code) } },
+        )
+    }
+}
+
+private class RuntimeEffectBrush(
+    private val code: String,
+    private val uniformOrder: List<String>,
+    private val geometry: PrimitiveGeometry,
+    private val uniforms: Map<String, ShaderUniform>,
+    private val context: RenderContext?,
+    private val effectProvider: (String) -> RuntimeEffect,
+) : ShaderBrush() {
+    override fun createShader(size: Size): Shader {
+        val allUniforms = buildMap {
+            putAll(uniforms)
+            put("iResolution", ShaderUniform.Float2(size.width, size.height))
+            put("uResolution", ShaderUniform.Float2(size.width, size.height))
+            put("uTime", ShaderUniform.Float1(context?.elapsedSeconds ?: 0f))
+            put("uFrame", ShaderUniform.Float1((context?.frameIndex ?: 0L).toFloat()))
+            put("uCamera", ShaderUniform.Float4(
+                context?.cameraX ?: 0f,
+                context?.cameraY ?: 0f,
+                context?.cameraZoom ?: 1f,
+                0f,
+            ))
+            put("uWorldCenter", ShaderUniform.Float2(
+                context?.worldCenterX ?: 0f,
+                context?.worldCenterY ?: 0f,
+            ))
+            put("uWorldRadius", ShaderUniform.Float1(context?.worldRadius ?: 0f))
+            put("uScreenRect", ShaderUniform.Float4(
+                context?.screenLeft ?: 0f,
+                context?.screenTop ?: 0f,
+                context?.screenWidth ?: size.width,
+                context?.screenHeight ?: size.height,
+            ))
+            when (geometry) {
+                is PrimitiveGeometry.Circle -> {
+                    put("uCenter", ShaderUniform.Float2(size.width * 0.5f, size.height * 0.5f))
+                    put("uRadius", ShaderUniform.Float1(size.minDimension * 0.5f))
+                }
+                is PrimitiveGeometry.Rect,
+                is PrimitiveGeometry.Texture -> {
+                    put("uCenter", ShaderUniform.Float2(size.width * 0.5f, size.height * 0.5f))
+                    put("uRadius", ShaderUniform.Float1(size.minDimension * 0.5f))
+                }
+                else -> Unit
+            }
+        }
+        val ordered = uniformOrder.ifEmpty { allUniforms.keys.toList() }
+        val data = Data.makeFromBytes(packUniforms(ordered, allUniforms))
+        return try {
+            effectProvider(code).makeShader(data, null, null).asComposeShader()
+        } catch (_: Throwable) {
+            effectProvider(
+                """
+                    half4 main(float2 p) { return half4(0.0); }
+                """.trimIndent(),
+            ).makeShader(Data.makeFromBytes(byteArrayOf()), null, null).asComposeShader()
+        }
+    }
+}
+
+private fun packUniforms(
+    order: List<String>,
+    uniforms: Map<String, ShaderUniform>,
+): ByteArray {
+    val floats = ArrayList<Float>(order.size * 4)
+    order.forEach { name ->
+        when (val uniform = uniforms[name]) {
+            is ShaderUniform.Float1 -> floats += uniform.value
+            is ShaderUniform.Float2 -> {
+                floats += uniform.x
+                floats += uniform.y
+            }
+            is ShaderUniform.Float4 -> {
+                floats += uniform.x
+                floats += uniform.y
+                floats += uniform.z
+                floats += uniform.w
+            }
+            is ShaderUniform.Color4 -> {
+                floats += uniform.value.red
+                floats += uniform.value.green
+                floats += uniform.value.blue
+                floats += uniform.value.alpha
+            }
+            null -> Unit
+        }
+    }
+    val buffer = ByteBuffer.allocate(floats.size * Float.SIZE_BYTES).order(ByteOrder.LITTLE_ENDIAN)
+    floats.forEach(buffer::putFloat)
+    return buffer.array()
+}

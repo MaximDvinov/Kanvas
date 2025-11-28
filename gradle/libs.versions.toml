@@ -1,0 +1,15 @@
+[versions]
+kotlin = "2.3.21"
+compose-multiplatform = "1.11.0"
+compose-hot-reload = "1.1.1"
+
+[plugins]
+kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
+jetbrains-compose = { id = "org.jetbrains.compose", version.ref = "compose-multiplatform" }
+compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+compose-hot-reload = { id = "org.jetbrains.compose.hot-reload", version.ref = "compose-hot-reload" }
+android-application = { id = "com.android.application", version = "8.7.3" }
+android-library = { id = "com.android.library", version = "8.7.3" }
+
+[libraries]
+compose-ui = { module = "org.jetbrains.compose.ui:ui", version.ref = "compose-multiplatform" }
