@@ -1,0 +1,36 @@
+name: Bug report
+description: Report a reproducible engine defect.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What happened and what did you expect?
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Provide deterministic steps.
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+
+  - type: input
+    id: module
+    attributes:
+      label: Affected module
+      placeholder: "e.g. :enginePhysics"
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, JDK version, Kotlin/Compose versions if relevant.
