@@ -7,7 +7,7 @@ The engine stays domain-neutral. Game rules, simulations, AI, economy, and app-s
 
 ## Status
 
-Current version: `0.1.0-alpha`
+Current version: `0.1.0-alpha.1`
 
 Supported targets:
 
@@ -21,10 +21,10 @@ Supported targets:
 
 | Module | Artifact | Purpose |
 | --- | --- | --- |
-| `:engine` | `com.kanvas.fx:engine` | Core runtime, scene model, renderer API, assets, input, and Compose host. |
-| `:enginePhysics` | `com.kanvas.fx:enginePhysics` | Optional 2D physics primitives, broadphase, collision, and physics DSL. |
-| `:engineGravityBarnesHut` | `com.kanvas.fx:engineGravityBarnesHut` | Optional Barnes-Hut n-body gravity simulation. |
-| `:engineWorldObjectsKit` | `com.kanvas.fx:engineWorldObjectsKit` | Reusable templates for common 2D world objects. |
+| `:engine` | `io.github.maximdvinov:engine` | Core runtime, scene model, renderer API, assets, input, and Compose host. |
+| `:enginePhysics` | `io.github.maximdvinov:enginePhysics` | Optional 2D physics primitives, broadphase, collision, and physics DSL. |
+| `:engineGravityBarnesHut` | `io.github.maximdvinov:engineGravityBarnesHut` | Optional Barnes-Hut n-body gravity simulation. |
+| `:engineWorldObjectsKit` | `io.github.maximdvinov:engineWorldObjectsKit` | Reusable templates for common 2D world objects. |
 
 ## Installation
 
@@ -37,7 +37,7 @@ repositories {
 }
 
 dependencies {
-    implementation("com.kanvas.fx:engine:0.1.0-alpha")
+    implementation("io.github.maximdvinov:engine:0.1.0-alpha.1")
 }
 ```
 
@@ -45,9 +45,9 @@ Optional extensions:
 
 ```kotlin
 dependencies {
-    implementation("com.kanvas.fx:enginePhysics:0.1.0-alpha")
-    implementation("com.kanvas.fx:engineGravityBarnesHut:0.1.0-alpha")
-    implementation("com.kanvas.fx:engineWorldObjectsKit:0.1.0-alpha")
+    implementation("io.github.maximdvinov:enginePhysics:0.1.0-alpha.1")
+    implementation("io.github.maximdvinov:engineGravityBarnesHut:0.1.0-alpha.1")
+    implementation("io.github.maximdvinov:engineWorldObjectsKit:0.1.0-alpha.1")
 }
 ```
 
@@ -185,7 +185,7 @@ Add the physics module:
 
 ```kotlin
 dependencies {
-    implementation("com.kanvas.fx:enginePhysics:0.1.0-alpha")
+    implementation("io.github.maximdvinov:enginePhysics:0.1.0-alpha.1")
 }
 ```
 

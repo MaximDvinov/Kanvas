@@ -2,10 +2,10 @@
 
 This project publishes the public library modules:
 
-- `com.kanvas.fx:engine`
-- `com.kanvas.fx:enginePhysics`
-- `com.kanvas.fx:engineGravityBarnesHut`
-- `com.kanvas.fx:engineWorldObjectsKit`
+- `io.github.maximdvinov:engine`
+- `io.github.maximdvinov:enginePhysics`
+- `io.github.maximdvinov:engineGravityBarnesHut`
+- `io.github.maximdvinov:engineWorldObjectsKit`
 
 ## Distribution Targets
 
@@ -22,7 +22,7 @@ After Gradle uploads the Maven artifacts, CI calls the Central Portal manual upl
 ## Required Sonatype Setup
 
 1. Create or sign in to a Sonatype Central Portal account.
-2. Create and verify the namespace for `com.kanvas.fx`.
+2. Create and verify the namespace for `io.github.maximdvinov`.
 3. Generate a Central Portal user token.
 4. Create a PGP key for artifact signing.
 
@@ -56,7 +56,7 @@ Plain multiline `SIGNING_KEY` is still supported for local use, but `SIGNING_KEY
 Optional repository variable:
 
 ```text
-MAVEN_CENTRAL_NAMESPACE=com.kanvas.fx
+MAVEN_CENTRAL_NAMESPACE=io.github.maximdvinov
 ```
 
 ## Local Preflight
@@ -97,13 +97,13 @@ Signing is required for Maven Central publishing tasks and optional for local pu
 The published version is controlled by `VERSION_NAME` in `gradle.properties`:
 
 ```properties
-VERSION_NAME=0.1.0-alpha
+VERSION_NAME=0.1.0-alpha.1
 ```
 
 Before publishing, move changelog entries from `Unreleased` into a dated version section:
 
 ```md
-## [0.1.0-alpha] - YYYY-MM-DD
+## [0.1.0-alpha.1] - YYYY-MM-DD
 ```
 
 ## Publish from GitHub Actions
@@ -111,7 +111,7 @@ Before publishing, move changelog entries from `Unreleased` into a dated version
 Create and push a version tag:
 
 ```bash
-git tag v0.1.0-alpha
+git tag v0.1.0-alpha.1
 git push origin main --tags
 ```
 
@@ -146,7 +146,7 @@ token="$(printf '%s:%s' "$MAVEN_CENTRAL_USERNAME" "$MAVEN_CENTRAL_PASSWORD" | ba
 curl --fail-with-body \
   -X POST \
   -H "Authorization: Bearer $token" \
-  "https://ossrh-staging-api.central.sonatype.com/manual/upload/defaultRepository/com.kanvas.fx?publishing_type=automatic"
+  "https://ossrh-staging-api.central.sonatype.com/manual/upload/defaultRepository/io.github.maximdvinov?publishing_type=automatic"
 ```
 
 ## Post-release

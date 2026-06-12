@@ -60,7 +60,7 @@ jobs:
         env:
           MAVEN_CENTRAL_USERNAME: ${{ secrets.MAVEN_CENTRAL_USERNAME }}
           MAVEN_CENTRAL_PASSWORD: ${{ secrets.MAVEN_CENTRAL_PASSWORD }}
-          MAVEN_CENTRAL_NAMESPACE: ${{ vars.MAVEN_CENTRAL_NAMESPACE || 'com.kanvas.fx' }}
+          MAVEN_CENTRAL_NAMESPACE: ${{ vars.MAVEN_CENTRAL_NAMESPACE || 'io.github.maximdvinov' }}
         run: |
           token="$(printf '%s:%s' "$MAVEN_CENTRAL_USERNAME" "$MAVEN_CENTRAL_PASSWORD" | base64 | tr -d '\n')"
           curl --fail-with-body \
