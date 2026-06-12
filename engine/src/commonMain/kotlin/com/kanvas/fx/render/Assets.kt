@@ -4,7 +4,17 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.Brush
 
 /**
- * Registry for render assets referenced by DSL and game objects.
+ * Registry for render assets referenced by DSL, render callbacks, and game objects.
+ *
+ * Textures are resolved lazily. A [TextureSource.Path] can be loaded through custom
+ * [TextureResolver] instances first, then through multiplatform [ResourceResolver] and
+ * [ResourceImageDecoder] chains.
+ *
+ * ```kotlin
+ * val assets = AssetRegistry()
+ * assets.registerTexture("player", "textures/player.png")
+ * assets.addTextureResolver { path -> loadBitmapFromCache(path) }
+ * ```
  */
 class AssetRegistry {
     private val textures = mutableMapOf<String, TextureAsset>()
@@ -17,6 +27,7 @@ class AssetRegistry {
     init {
         resourceResolvers += defaultResourceResolver()
         imageDecoders += defaultResourceImageDecoder()
+        defaultRuntimeShaderBrushFactory()?.let(::registerRuntimeShaderBrushFactory)
     }
 
     /**
@@ -52,6 +63,8 @@ class AssetRegistry {
 
     /**
      * Adds a binary resource resolver used for multiplatform resource loading.
+     *
+     * Resolvers are tried in registration order until one returns bytes.
      */
     fun addResourceResolver(resolver: ResourceResolver) {
         resourceResolvers += resolver
@@ -146,6 +159,11 @@ class AssetRegistry {
         return asset
     }
 
+    /**
+     * Resolves raw resource bytes using the current resolver chain.
+     *
+     * @return byte contents for [path], or null when no resolver can load it.
+     */
     fun resolveResourceBytes(path: String): ByteArray? {
         for (resolver in resourceResolvers) {
             val bytes = resolver.resolve(path) ?: continue
@@ -175,6 +193,8 @@ class AssetRegistry {
 /**
  * Texture descriptor.
  *
+ * Store descriptors in [AssetRegistry] and reference them from renderer calls by [id].
+ *
  * @property id unique texture id.
  * @property source source variant used for loading/rendering.
  */
@@ -185,6 +205,8 @@ data class TextureAsset(
 
 /**
  * Texture source variants.
+ *
+ * Prefer [Path] for app resources and [Bitmap] for images already decoded by the host.
  */
 sealed interface TextureSource {
     /**
@@ -203,6 +225,8 @@ sealed interface TextureSource {
 
 /**
  * Texture path resolver used by [AssetRegistry].
+ *
+ * Return null to let later resolvers attempt the same path.
  */
 fun interface TextureResolver {
     /**
@@ -215,6 +239,9 @@ fun interface TextureResolver {
 
 /**
  * Multiplatform binary resource resolver.
+ *
+ * This layer is useful when images are packaged as Compose resources and need decoding
+ * after lookup.
  */
 fun interface ResourceResolver {
     /**
@@ -227,11 +254,17 @@ fun interface ResourceResolver {
  * Decodes resource bytes into [ImageBitmap].
  */
 fun interface ResourceImageDecoder {
+    /**
+     * Decodes [bytes] into a bitmap, or returns null when the decoder does not support them.
+     */
     fun decode(bytes: ByteArray): ImageBitmap?
 }
 
 /**
  * Shader descriptor.
+ *
+ * Shader support is platform-dependent. If no [RuntimeShaderBrushFactory] is available,
+ * shader-backed materials can fall back to non-shader rendering.
  *
  * @property id unique shader id.
  * @property source shader source variant.
@@ -269,6 +302,9 @@ sealed interface ShaderSource {
 
 /**
  * Runtime shader uniform values supported by the engine.
+ *
+ * Uniform names are matched against shader source expectations or [ShaderSource.SkiaRuntime]
+ * uniform order.
  */
 sealed interface ShaderUniform {
     /** Single float uniform. */
@@ -288,8 +324,15 @@ sealed interface ShaderUniform {
 
 /**
  * Platform hook that converts shader code into a Compose [Brush].
+ *
+ * Platform modules register the default implementation when RuntimeEffect-style shaders are
+ * available.
  */
 fun interface RuntimeShaderBrushFactory {
+    /**
+     * Creates a brush for [shader] and [geometry], or null when the shader cannot be used
+     * on the current platform.
+     */
     fun create(
         shader: ShaderAsset,
         geometry: PrimitiveGeometry,
@@ -307,3 +350,8 @@ expect fun defaultResourceResolver(): ResourceResolver
  * Default image decoder for current target.
  */
 expect fun defaultResourceImageDecoder(): ResourceImageDecoder
+
+/**
+ * Default runtime shader factory for current target, or null when unsupported.
+ */
+expect fun defaultRuntimeShaderBrushFactory(): RuntimeShaderBrushFactory?

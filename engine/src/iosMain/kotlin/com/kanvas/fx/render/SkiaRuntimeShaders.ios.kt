@@ -8,16 +8,9 @@ import androidx.compose.ui.graphics.asComposeShader
 import org.jetbrains.skia.Data
 import org.jetbrains.skia.RuntimeEffect
 
-/**
- * Enables Skia RuntimeEffect shader code execution for Compose Desktop/JVM.
- */
-fun AssetRegistry.enableDesktopRuntimeShaders() {
-    registerRuntimeShaderBrushFactory(DesktopRuntimeShaderBrushFactory)
-}
+actual fun defaultRuntimeShaderBrushFactory(): RuntimeShaderBrushFactory? = IosRuntimeShaderBrushFactory
 
-actual fun defaultRuntimeShaderBrushFactory(): RuntimeShaderBrushFactory? = DesktopRuntimeShaderBrushFactory
-
-private object DesktopRuntimeShaderBrushFactory : RuntimeShaderBrushFactory {
+private object IosRuntimeShaderBrushFactory : RuntimeShaderBrushFactory {
     private val effectCache = mutableMapOf<String, RuntimeEffect>()
 
     override fun create(
@@ -27,7 +20,7 @@ private object DesktopRuntimeShaderBrushFactory : RuntimeShaderBrushFactory {
         context: RenderContext?,
     ): Brush? {
         val runtime = runtimeShaderSource(shader, uniforms) ?: return null
-        return RuntimeEffectBrush(
+        return IosRuntimeEffectBrush(
             code = runtime.code,
             uniformOrder = runtime.uniformOrder,
             geometry = geometry,
@@ -38,7 +31,7 @@ private object DesktopRuntimeShaderBrushFactory : RuntimeShaderBrushFactory {
     }
 }
 
-private class RuntimeEffectBrush(
+private class IosRuntimeEffectBrush(
     private val code: String,
     private val uniformOrder: List<String>,
     private val geometry: PrimitiveGeometry,
@@ -53,11 +46,9 @@ private class RuntimeEffectBrush(
         return try {
             effectProvider(code).makeShader(data, null, null).asComposeShader()
         } catch (_: Throwable) {
-            effectProvider(
-                """
-                    half4 main(float2 p) { return half4(0.0); }
-                """.trimIndent(),
-            ).makeShader(Data.makeFromBytes(byteArrayOf()), null, null).asComposeShader()
+            effectProvider("half4 main(float2 p) { return half4(0.0); }")
+                .makeShader(Data.makeFromBytes(byteArrayOf()), null, null)
+                .asComposeShader()
         }
     }
 }

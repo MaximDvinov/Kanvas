@@ -13,6 +13,19 @@ import kotlin.math.sin
 
 /**
  * Stable and allocation-friendly 2D particle system with fixed-capacity storage.
+ *
+ * The system stores particle data in primitive arrays and recycles slots when capacity is
+ * reached. Register it as a scene system to update particles, then call [render] from an
+ * entity render callback or a custom render pass.
+ *
+ * ```kotlin
+ * val particles = ParticleSystem2D(capacity = 4096)
+ * particles.registerEmitter(
+ *     "engine",
+ *     ParticleEmitter2D(origin = { Offset(120f, 200f) }),
+ * )
+ * scene.addSystem(SceneSystemSpec("particles", particles))
+ * ```
  */
 class ParticleSystem2D(
     capacity: Int = 2_048,
@@ -38,20 +51,36 @@ class ParticleSystem2D(
     private var recycleCursor = 0
     private var seed = 0x6D2B79F5
 
+    /** Number of particles currently alive. */
     val activeParticles: Int get() = aliveCount
+    /** Maximum particles stored before older slots are recycled. */
     val capacityLimit: Int get() = maxParticles
 
+    /**
+     * Registers or replaces a continuous emitter by id.
+     */
     fun registerEmitter(id: String, emitter: ParticleEmitter2D) {
         require(id.isNotBlank()) { "Emitter id must not be blank." }
         emitters[id] = emitter
     }
 
+    /**
+     * Removes an emitter.
+     *
+     * @return true when an emitter with [id] existed.
+     */
     fun removeEmitter(id: String): Boolean = emitters.remove(id) != null
 
+    /**
+     * Removes all continuous emitters without clearing already alive particles.
+     */
     fun clearEmitters() {
         emitters.clear()
     }
 
+    /**
+     * Removes all alive particles while keeping registered emitters.
+     */
     fun clearParticles() {
         aliveCount = 0
         recycleCursor = 0
@@ -64,6 +93,12 @@ class ParticleSystem2D(
         emitters.values.forEach { emitFrom(it, dt) }
     }
 
+    /**
+     * Renders all alive particles as circles.
+     *
+     * Particles are rendered in storage order. Use separate systems when strict layering
+     * between particle groups is required.
+     */
     fun render(
         renderer: Renderer2D,
         style: RenderStyle = RenderStyle(),
@@ -211,6 +246,18 @@ class ParticleSystem2D(
 
 /**
  * Emitter configuration and internal spawn accumulator.
+ *
+ * [origin] is evaluated each frame, so emitters can follow moving entities.
+ *
+ * ```kotlin
+ * val smoke = ParticleEmitter2D(
+ *     particlesPerSecond = 25f,
+ *     directionDegrees = -90f,
+ *     spreadDegrees = 30f,
+ *     color = Color.Gray,
+ *     origin = { player.requireComponent<TransformComponent>().position },
+ * )
+ * ```
  */
 class ParticleEmitter2D(
     var enabled: Boolean = true,

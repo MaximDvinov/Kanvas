@@ -8,6 +8,31 @@ import kotlin.math.sqrt
 
 /**
  * Barnes-Hut gravity solver for 2D n-body simulation.
+ *
+ * Algorithm outline per frame:
+ * 1. build quadtree bounds from current bodies;
+ * 2. aggregate center-of-mass per node;
+ * 3. compute acceleration for each body using theta approximation;
+ * 4. update velocity then position.
+ *
+ * Parameter notes:
+ * - `gravityConstant` controls attraction strength;
+ * - `softening` stabilizes short-distance interactions;
+ * - `theta` balances precision vs performance.
+ *
+ * ```kotlin
+ * val bodies = mutableListOf<GravityBody>()
+ * val gravity = BarnesHutGravitySystem(
+ *     bodiesProvider = { bodies },
+ *     gravityConstant = 3_800f,
+ *     softening = 28f,
+ *     theta = 0.65f,
+ * )
+ * scene.addSystem(SceneSystemSpec("gravity", gravity, phase = SystemPhase.PrePhysics))
+ * ```
+ *
+ * Lower `theta` values are more accurate and more expensive. Higher values approximate
+ * distant clusters more aggressively.
  */
 class BarnesHutGravitySystem(
     private val bodiesProvider: () -> List<GravityBody>,

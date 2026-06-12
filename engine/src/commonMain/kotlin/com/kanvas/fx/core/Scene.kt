@@ -4,17 +4,30 @@ import com.kanvas.fx.render.Renderer2D
 import kotlin.reflect.KClass
 import kotlin.time.TimeSource
 
+/**
+ * Scene-level visibility configuration used by the renderer.
+ *
+ * Set [debugOverlay] to true when profiling culling decisions or validating object bounds.
+ */
 data class VisibilityConfig(
     var enabled: Boolean = true,
     var debugOverlay: Boolean = false,
 )
 
+/**
+ * Per-scene render quality switches.
+ *
+ * The renderer may clamp these values for very large scenes to keep frame time stable.
+ */
 data class RenderQualityConfig(
     var effectsEnabled: Boolean = true,
     var maxLightsPerObject: Int = 4,
     var glowQuality: Float = 1f,
 )
 
+/**
+ * Mutable render counters captured during the most recent scene render.
+ */
 data class ScenePerfCounters(
     val renderedCount: Int = 0,
     val culledCount: Int = 0,
@@ -23,6 +36,9 @@ data class ScenePerfCounters(
     val materialPasses: Int = 0,
 )
 
+/**
+ * Immutable frame-stat snapshot suitable for UI panels, diagnostics, and tests.
+ */
 data class SceneFrameStats(
     val renderedCount: Int = 0,
     val culledCount: Int = 0,
@@ -32,7 +48,25 @@ data class SceneFrameStats(
 )
 
 /**
- * Runtime scene container with camera, entities and ordered systems.
+ * Runtime scene container with camera, entities, camera controls, and ordered systems.
+ *
+ * Scene update pipeline:
+ * 1. flush pending spawn/remove queues;
+ * 2. camera controls [CameraControl.onFrame];
+ * 3. scene callback [onUpdate];
+ * 4. enabled systems sorted by phase/order/id;
+ * 5. enabled entities update behaviors;
+ * 6. flush queues again.
+ *
+ * Use one [Scene] for one gameplay state such as a menu, level, world shard, or editor mode.
+ *
+ * ```kotlin
+ * val scene = Scene("level")
+ * scene.onUpdate = { frame ->
+ *     if (frame.frameIndex % 60L == 0L) println(scene.frameStatsSnapshot())
+ * }
+ * scene.spawn(Entity("player"))
+ * ```
  */
 class Scene(
     /** Unique scene name inside an [Engine]. */
@@ -43,15 +77,24 @@ class Scene(
 
     /** Scene camera used by renderer and input coordinate conversion. */
     val camera: Camera2D = Camera2D()
-    /** Additional scene-local time multiplier. */
+    /** Additional scene-local time multiplier applied after [Engine.timeScale]. */
     var timeScale: Float = 1f
+    /** Visibility and debug overlay settings for this scene. */
     val visibility: VisibilityConfig = VisibilityConfig()
+    /** Quality knobs used by render materials and scene-level fallbacks. */
     val renderQuality: RenderQualityConfig = RenderQualityConfig()
+    /** Mutable counters from the latest render pass. */
     var perfCounters: ScenePerfCounters = ScenePerfCounters()
         private set
+    /** Immutable frame stats from the latest render pass. */
     var lastFrameStats: SceneFrameStats = SceneFrameStats()
         private set
 
+    /**
+     * Returns the latest render-stat snapshot.
+     *
+     * Prefer this method from UI code to avoid depending on mutable internal counters.
+     */
     fun frameStatsSnapshot(): SceneFrameStats = lastFrameStats
 
     private val entities = mutableListOf<Entity>()
@@ -76,14 +119,30 @@ class Scene(
     /** Scene-level input callback before entity input dispatch. */
     var onInput: (EngineInputEvent) -> Unit = {}
 
+    /**
+     * Enqueues entity addition.
+     *
+     * The entity becomes active on queue flush, not immediately in-place. This keeps entity
+     * lists stable while systems and behaviors are iterating.
+     *
+     * ```kotlin
+     * scene.spawn(Entity("enemy-1").addComponent(TransformComponent()))
+     * ```
+     */
     fun spawn(entity: Entity) {
         pendingAdd += entity
     }
 
+    /**
+     * Enqueues multiple entities for next flush cycle.
+     */
     fun spawnMany(items: Iterable<Entity>) {
         pendingAdd += items
     }
 
+    /**
+     * Enqueues removal for entity id.
+     */
     fun removeEntity(id: String) {
         pendingRemove += id
     }
@@ -108,6 +167,11 @@ class Scene(
         return true
     }
 
+    /**
+     * Enqueues removal for every id in [ids].
+     *
+     * Missing ids are ignored during the later queue flush.
+     */
     fun removeMany(ids: Iterable<String>) {
         pendingRemove += ids
     }
@@ -123,15 +187,53 @@ class Scene(
         return removed
     }
 
+    /**
+     * Adds an ordered scene system.
+     *
+     * Systems are sorted by phase, order, and id during update. Use [upsertSystem] when a
+     * stable id should be replaced instead of duplicated.
+     */
     fun addSystem(spec: SceneSystemSpec) {
         systems += spec
         systemsCacheDirty = true
     }
 
+    /**
+     * Adds or replaces a system by stable [SceneSystemSpec.id].
+     */
+    fun upsertSystem(spec: SceneSystemSpec) {
+        val index = systems.indexOfFirst { it.id == spec.id }
+        if (index >= 0) {
+            systems[index] = spec
+        } else {
+            systems += spec
+        }
+        systemsCacheDirty = true
+    }
+
+    /**
+     * Removes a system by [id].
+     *
+     * @return true when the system existed.
+     */
+    fun removeSystem(id: String): Boolean {
+        val removed = systems.removeAll { it.id == id }
+        if (removed) systemsCacheDirty = true
+        return removed
+    }
+
+    /**
+     * Adds a camera control that can react to input and frame updates before scene systems.
+     */
     fun addCameraControl(control: CameraControl) {
         cameraControls += control
     }
 
+    /**
+     * Enables or disables a registered system.
+     *
+     * @return true when a system with [id] exists.
+     */
     fun setSystemEnabled(id: String, enabled: Boolean): Boolean {
         val spec = systems.firstOrNull { it.id == id } ?: return false
         spec.enabled = enabled
@@ -139,13 +241,25 @@ class Scene(
         return true
     }
 
+    /**
+     * Returns registered systems in insertion order.
+     */
     fun systemsSnapshot(): List<SceneSystemSpec> = systems.toList()
 
+    /**
+     * Returns active entities that currently own a component of [type].
+     */
     fun <T : EntityComponent> entitiesWith(type: KClass<T>): List<Entity> =
         entitiesByComponentType[type]?.toList() ?: emptyList()
 
+    /**
+     * Returns active entities containing [tag] in their [TagsComponent].
+     */
     fun entitiesTagged(tag: String): List<Entity> = entitiesByTag[tag]?.toList() ?: emptyList()
 
+    /**
+     * Returns an active entity by id, or null when it is not attached to the scene.
+     */
     fun entity(id: String): Entity? = entityById[id]
 
     internal fun start(engine: Engine) {

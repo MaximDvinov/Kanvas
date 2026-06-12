@@ -38,7 +38,21 @@ import com.kanvas.fx.render.Renderer2D
 import kotlin.math.abs
 
 /**
- * Compose rendering surface that runs the frame loop, forwards input, and renders the current scene.
+ * Compose rendering surface that runs frame loop, forwards input and renders current scene.
+ *
+ * Responsibilities:
+ * - owns `withFrameNanos` loop and calls `engine.tick(deltaSeconds)`;
+ * - maps Compose pointer/gesture/keyboard events to engine input events;
+ * - converts screen coordinates to world coordinates using active scene camera;
+ * - renders active scene through [Renderer2D].
+ *
+ * Example:
+ * ```kotlin
+ * EngineCanvas(
+ *   engine = engine,
+ *   modifier = Modifier.fillMaxSize(),
+ * )
+ * ```
  */
 @Composable
 fun EngineCanvas(

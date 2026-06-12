@@ -6,6 +6,8 @@ import kotlin.reflect.KClass
 
 /**
  * Marker interface for components that can be attached to an [Entity].
+ *
+ * Components hold data. Put per-frame behavior in [EntityBehavior] or a [SceneSystem].
  */
 interface EntityComponent
 
@@ -14,6 +16,15 @@ interface EntityComponent
  *
  * Behaviors are invoked by the scene runtime when an entity is attached, detached,
  * updated, receives input, or is rendered.
+ *
+ * ```kotlin
+ * class Lifetime(private var seconds: Float) : EntityBehavior {
+ *     override fun onUpdate(entity: Entity, frame: FrameContext) {
+ *         seconds -= frame.deltaTimeSeconds
+ *         if (seconds <= 0f) frame.scene.removeEntity(entity)
+ *     }
+ * }
+ * ```
  */
 interface EntityBehavior {
     /**
@@ -44,6 +55,9 @@ interface EntityBehavior {
 
 /**
  * Standard transform component in world space.
+ *
+ * The renderer and most systems treat [position] as the entity origin. Rotation is stored
+ * in degrees for UI-friendly authoring.
  */
 data class TransformComponent(
     var position: Offset = Offset.Zero,
@@ -54,6 +68,8 @@ data class TransformComponent(
 
 /**
  * Input handler component for per-entity input logic.
+ *
+ * The handler is invoked after scene-level input and only while the entity is enabled.
  */
 class InputComponent(
     var handler: (Entity, EngineInputEvent) -> Unit = { _, _ -> },
@@ -61,6 +77,16 @@ class InputComponent(
 
 /**
  * Render component with draw callback and z-order.
+ *
+ * Lower [zIndex] values render first. The callback receives the entity so it can read
+ * components at draw time.
+ *
+ * ```kotlin
+ * entity.addComponent(RenderComponent(zIndex = 10) { e ->
+ *     val t = e.requireComponent<TransformComponent>()
+ *     circle(t.position, radius = 12f, color = Color.White)
+ * })
+ * ```
  */
 class RenderComponent(
     var zIndex: Int = 0,
@@ -70,6 +96,9 @@ class RenderComponent(
 
 /**
  * Axis-aligned world-space bounds used for visibility culling.
+ *
+ * Bounds should cover the full rendered area in world coordinates. Entities without bounds
+ * are treated as visible unless culled by custom logic.
  */
 data class BoundsComponent(
     var left: Float,
@@ -84,7 +113,25 @@ data class BoundsComponent(
 }
 
 /**
- * Optional visibility settings attached to entity.
+ * Lightweight AABB collider for arcade gameplay and simple overlap checks.
+ *
+ * This component is separate from the optional physics module. Use
+ * `PhysicsBodyComponent` when rigid-body collision response is needed.
+ */
+data class Collider2DComponent(
+    var offsetX: Float = 0f,
+    var offsetY: Float = 0f,
+    var width: Float,
+    var height: Float,
+) : EntityComponent {
+    init {
+        require(width >= 0f) { "Collider width must be >= 0." }
+        require(height >= 0f) { "Collider height must be >= 0." }
+    }
+}
+
+/**
+ * Optional visibility settings attached to an entity.
  */
 data class VisibilityComponent(
     var alwaysVisible: Boolean = false,
@@ -92,6 +139,8 @@ data class VisibilityComponent(
 
 /**
  * Arbitrary string tags for grouping and filtering entities.
+ *
+ * Tags are indexed by [Scene], so [Scene.entitiesTagged] can find active entities quickly.
  */
 class TagsComponent(
     val tags: MutableSet<String> = linkedSetOf(),
@@ -106,6 +155,16 @@ class MetadataComponent(
 
 /**
  * Runtime scene entity composed from components and behaviors.
+ *
+ * Entities are identified by a stable [id] inside a scene. Adding a component of the same
+ * runtime type replaces the previous instance.
+ *
+ * ```kotlin
+ * val player = Entity("player")
+ *     .addComponent(TransformComponent(position = Offset(40f, 120f)))
+ *     .addBehavior(PlayerController())
+ * scene.spawn(player)
+ * ```
  */
 class Entity(
     val id: String,
@@ -114,6 +173,7 @@ class Entity(
      * When `false`, entity update/input/render callbacks are skipped.
      */
     var enabled: Boolean = true
+    /** When true, scene culling keeps this entity visible even outside the viewport. */
     var alwaysVisible: Boolean = false
 
     private val components = mutableListOf<EntityComponent>()
@@ -170,6 +230,9 @@ class Entity(
 
     /**
      * Returns a required component or throws if missing.
+     *
+     * Use this inside systems and render callbacks when the component is part of the
+     * entity contract.
      */
     inline fun <reified T : EntityComponent> requireComponent(): T =
         componentOrNull<T>() ?: error("Entity '$id' does not have ${T::class.simpleName}.")
@@ -179,6 +242,9 @@ class Entity(
      */
     fun hasTag(tag: String): Boolean = componentOrNull<TagsComponent>()?.tags?.contains(tag) == true
 
+    /**
+     * Returns culling bounds attached to this entity, or null when it has none.
+     */
     fun boundsOrNull(): BoundsComponent? = componentOrNull()
 
     internal fun onAttach(engine: Engine, scene: Scene) {

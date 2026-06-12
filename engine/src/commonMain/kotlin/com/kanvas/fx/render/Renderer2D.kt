@@ -21,7 +21,16 @@ import kotlin.math.min
 import kotlin.math.sqrt
 
 /**
- * Draw facade used by game objects.
+ * World-space draw facade used by [com.kanvas.fx.core.RenderComponent] and entity render behaviors.
+ *
+ * Coordinate system:
+ * - public primitive APIs accept world coordinates;
+ * - camera transform (`position` + `zoom`) is applied internally;
+ * - draw output is emitted into current Compose [DrawScope].
+ *
+ * Common flow per frame:
+ * 1. [beginFrame]
+ * 2. for each renderable entity: [beginEntity] -> primitive draws -> [endEntity]
  */
 class Renderer2D(
     private val drawScope: DrawScope,

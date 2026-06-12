@@ -9,18 +9,38 @@ import kotlin.math.sqrt
 
 /**
  * Collider shape set supported by the basic 2D physics world.
+ *
+ * Colliders are defined in body-local coordinates and transformed by
+ * [PhysicsBody2D.position]. They do not currently store rotation.
  */
 sealed interface Collider2D {
+    /** Circle collider centered on the body position. */
     data class Circle(val radius: Float) : Collider2D
+    /** Axis-aligned box collider centered on the body position. */
     data class Aabb(val halfWidth: Float, val halfHeight: Float) : Collider2D
     /**
      * Convex polygon points in local body space.
+     *
+     * Points should be ordered around the polygon perimeter.
      */
     data class Polygon(val points: List<Offset>) : Collider2D
 }
 
 /**
  * Mutable rigid body state used by [PhysicsWorld2D].
+ *
+ * Dynamic bodies are integrated by gravity and collisions. Static bodies have zero inverse
+ * mass and are not moved by integration or impulses.
+ *
+ * ```kotlin
+ * val ball = PhysicsBody2D(
+ *     id = "ball",
+ *     position = Offset(100f, 40f),
+ *     collider = Collider2D.Circle(radius = 16f),
+ *     mass = 1f,
+ *     restitution = 0.5f,
+ * )
+ * ```
  */
 data class PhysicsBody2D(
     val id: String,
@@ -43,12 +63,21 @@ data class PhysicsBody2D(
 }
 
 /**
- * Entity component that binds an [Entity] to [PhysicsBody2D].
+ * Entity component that binds an entity to [PhysicsBody2D].
+ *
+ * Systems can use this component to synchronize [TransformComponent] and physics body
+ * positions.
  */
 data class PhysicsBodyComponent(
     val body: PhysicsBody2D,
 ) : EntityComponent
 
+/**
+ * Collision contact data produced by [PhysicsWorld2D].
+ *
+ * [normal] points from [bodyA] toward [bodyB]. [penetration] is the overlap depth in
+ * world units.
+ */
 data class Collision2D(
     val bodyA: PhysicsBody2D,
     val bodyB: PhysicsBody2D,
@@ -56,10 +85,21 @@ data class Collision2D(
     val penetration: Float,
 )
 
+/**
+ * Candidate-pair provider used before narrow-phase collision tests.
+ */
 interface BroadphaseStrategy {
+    /**
+     * Returns body index pairs that may overlap.
+     */
     fun candidatePairs(bodies: List<PhysicsBody2D>): Sequence<Pair<Int, Int>>
 }
 
+/**
+ * Brute-force broadphase that checks every pair.
+ *
+ * Use this for small body counts or deterministic tests.
+ */
 object NoBroadphase : BroadphaseStrategy {
     override fun candidatePairs(bodies: List<PhysicsBody2D>): Sequence<Pair<Int, Int>> = sequence {
         for (i in 0 until bodies.lastIndex) {
@@ -68,6 +108,12 @@ object NoBroadphase : BroadphaseStrategy {
     }
 }
 
+/**
+ * Uniform-grid broadphase for scenes with many spatially distributed bodies.
+ *
+ * [cellSize] should roughly match the average collider diameter. Too-small cells increase
+ * bookkeeping; too-large cells approach brute-force behavior.
+ */
 class UniformGridBroadphase(
     private val cellSize: Float = 256f,
 ) : BroadphaseStrategy {
@@ -105,10 +151,29 @@ class UniformGridBroadphase(
 }
 
 /**
- * Basic 2D physics world:
- * - gravity
- * - pairwise collision detection
- * - impulse-based collision response
+ * Basic mutable 2D physics world.
+ *
+ * Includes:
+ * - gravity integration;
+ * - broadphase candidate generation;
+ * - narrow-phase collision detection;
+ * - impulse + positional correction resolution;
+ * - enter/stay/exit collision callbacks.
+ *
+ * Typical DSL wiring:
+ * ```kotlin
+ * val world = physicsWorld2dUniformGrid()
+ * scene("level") {
+ *     systems { physics2d(world) }
+ * }
+ * ```
+ *
+ * Manual stepping:
+ * ```kotlin
+ * world.addBody(PhysicsBody2D("floor", Offset(0f, 320f), collider = Collider2D.Aabb(400f, 16f), isStatic = true))
+ * world.step(1f / 60f)
+ * val contacts = world.collisionsForBody("player")
+ * ```
  */
 class PhysicsWorld2D(
     var gravity: Offset = Offset(0f, 400f),
@@ -117,8 +182,11 @@ class PhysicsWorld2D(
 ) {
     private val bodies = linkedMapOf<String, PhysicsBody2D>()
 
+    /** Called once when a body pair starts colliding. */
     var onCollisionEnter: (Collision2D) -> Unit = {}
+    /** Called on every step while a body pair remains colliding. */
     var onCollisionStay: (Collision2D) -> Unit = {}
+    /** Called once when a previously colliding pair separates. */
     var onCollisionExit: (String, String) -> Unit = { _, _ -> }
 
     private var previousPairs = emptySet<Pair<String, String>>()
@@ -126,6 +194,9 @@ class PhysicsWorld2D(
 
     /**
      * Adds or replaces a body by id.
+     *
+     * Replacing a body keeps the world map stable but resets any external references to
+     * the previous body instance.
      */
     fun addBody(body: PhysicsBody2D) {
         bodies[body.id] = body
@@ -144,7 +215,10 @@ class PhysicsWorld2D(
     fun body(id: String): PhysicsBody2D? = bodies[id]
 
     /**
-     * Immutable body snapshot.
+     * Immutable body-list snapshot.
+     *
+     * The returned list is detached from the world map, but the body objects themselves are
+     * mutable runtime state.
      */
     fun snapshotBodies(): List<PhysicsBody2D> = bodies.values.toList()
 
@@ -156,6 +230,16 @@ class PhysicsWorld2D(
 
     /**
      * Advances world state by [deltaTimeSeconds].
+     *
+     * Steps:
+     * 1. integrate velocity/position;
+     * 2. detect collisions from broadphase candidates;
+     * 3. resolve impulses for configured iteration count;
+     * 4. apply positional correction;
+     * 5. emit enter/stay/exit callbacks.
+     *
+     * Negative deltas are not expected. Fixed-step engines should pass the fixed
+     * [FrameContext.deltaTimeSeconds].
      */
     fun step(deltaTimeSeconds: Float) {
         if (bodies.size < 2) {

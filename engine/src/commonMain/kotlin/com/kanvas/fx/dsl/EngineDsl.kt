@@ -29,7 +29,25 @@ import com.kanvas.fx.render.TextureAsset
 import com.kanvas.fx.render.TextureSource
 
 /**
- * Builds an [Engine] with scenes, templates and optional assets.
+ * Builds an [Engine] with scenes, reusable entity templates, systems, and optional assets.
+ *
+ * ```kotlin
+ * val engine = engine {
+ *     entityTemplate("spark") {
+ *         transform { scale(0.5f) }
+ *         tags("effect")
+ *     }
+ *
+ *     scene("level", setCurrent = true) {
+ *         camera { desktopDefaults() }
+ *         entities {
+ *             spawn("spark", id = "spark-1") {
+ *                 transform { position(100f, 120f) }
+ *             }
+ *         }
+ *     }
+ * }
+ * ```
  */
 fun engine(
     config: EngineConfig = EngineConfig(),
@@ -42,6 +60,9 @@ fun engine(
 
 /**
  * Top-level engine DSL builder.
+ *
+ * The builder is evaluated once during [engine] construction. Runtime changes should be
+ * made through [Engine], [Scene], or [SceneObjects].
  */
 class EngineBuilder internal constructor(
     private val config: EngineConfig,
@@ -52,6 +73,9 @@ class EngineBuilder internal constructor(
 
     /**
      * Registers a scene definition.
+     *
+     * Scene names must be unique if you want to preserve previous scenes. Registering the
+     * same name again replaces the scene stored by [Engine].
      */
     fun scene(
         name: String,
@@ -65,7 +89,9 @@ class EngineBuilder internal constructor(
     }
 
     /**
-     * Registers reusable entity template.
+     * Registers a reusable entity template.
+     *
+     * Templates are copied into each spawned entity and may be overridden by the spawn block.
      */
     fun entityTemplate(name: String, block: EntityBuilder.() -> Unit) {
         require(name.isNotBlank()) { "Entity template name must not be blank." }
@@ -73,7 +99,9 @@ class EngineBuilder internal constructor(
     }
 
     /**
-     * Registers texture asset by id and filesystem path.
+     * Registers a texture asset by id and filesystem or resource path.
+     *
+     * The path is resolved lazily by [AssetRegistry] when the texture is first requested.
      */
     fun texture(id: String, path: String) {
         require(id.isNotBlank()) { "Texture id must not be blank." }
@@ -106,6 +134,9 @@ class EngineBuilder internal constructor(
 
 /**
  * Scene definition DSL.
+ *
+ * Use this scope to configure scene lifecycle, camera controls, systems, and initial
+ * entities. Entities spawned here are queued and attached when the scene starts.
  */
 class SceneBuilder internal constructor(
     private val name: String,
@@ -120,10 +151,16 @@ class SceneBuilder internal constructor(
         CameraBuilder(scene).apply(block)
     }
 
+    /**
+     * Configures scene-level visibility and debug culling output.
+     */
     fun visibility(block: VisibilityBuilder.() -> Unit) {
         VisibilityBuilder(scene).apply(block)
     }
 
+    /**
+     * Configures scene-level render quality switches.
+     */
     fun renderQuality(block: RenderQualityBuilder.() -> Unit) {
         RenderQualityBuilder(scene).apply(block)
     }
@@ -186,6 +223,16 @@ class SceneBuilder internal constructor(
 
 /**
  * Entity declaration scope for a scene.
+ *
+ * ```kotlin
+ * entities {
+ *     entity("player") {
+ *         transform { position(32f, 64f) }
+ *         bounds { rect(-16f, -16f, 32f, 32f) }
+ *         tags("player", "actor")
+ *     }
+ * }
+ * ```
  */
 class EntitiesBuilder internal constructor(
     private val scene: Scene,
@@ -232,6 +279,9 @@ class EntitiesBuilder internal constructor(
 
 /**
  * Entity construction DSL.
+ *
+ * Each component builder replaces the previous component of the same kind, so calling
+ * `transform { ... }` multiple times leaves one final [TransformComponent].
  */
 class EntityBuilder internal constructor(
     private val id: String,
@@ -269,6 +319,9 @@ class EntityBuilder internal constructor(
         components += RenderComponent(zIndex = zIndex, material = material, renderer = block)
     }
 
+    /**
+     * Adds or replaces [BoundsComponent] used by viewport culling.
+     */
     fun bounds(block: BoundsBuilder.() -> Unit) {
         val current = components.filterIsInstance<BoundsComponent>().firstOrNull()
             ?: BoundsComponent(0f, 0f, 0f, 0f)
@@ -277,6 +330,9 @@ class EntityBuilder internal constructor(
         components += updated
     }
 
+    /**
+     * Convenience helper for rectangular bounds in local authoring coordinates.
+     */
     fun autoBoundsRect(
         x: Float,
         y: Float,
@@ -287,6 +343,9 @@ class EntityBuilder internal constructor(
         bounds { rect(x, y, width, height) }
     }
 
+    /**
+     * Convenience helper that creates square bounds around a circle.
+     */
     fun autoBoundsCircle(
         centerX: Float,
         centerY: Float,
@@ -296,6 +355,9 @@ class EntityBuilder internal constructor(
         bounds { circle(centerX, centerY, radius) }
     }
 
+    /**
+     * Convenience helper for texture-sized rectangular bounds.
+     */
     fun autoBoundsTexture(
         topLeftX: Float,
         topLeftY: Float,
@@ -306,6 +368,9 @@ class EntityBuilder internal constructor(
         bounds { rect(topLeftX, topLeftY, width, height) }
     }
 
+    /**
+     * Marks the entity as always visible, bypassing viewport culling.
+     */
     fun alwaysVisible(value: Boolean = true) {
         val visibility = components.filterIsInstance<VisibilityComponent>().firstOrNull() ?: VisibilityComponent()
         visibility.alwaysVisible = value
@@ -352,6 +417,8 @@ class EntityBuilder internal constructor(
 
 /**
  * Camera configuration DSL.
+ *
+ * Camera controls registered here receive input before scene-level input handlers.
  */
 class CameraBuilder internal constructor(
     private val scene: Scene,
@@ -449,30 +516,45 @@ class CameraBuilder internal constructor(
     }
 }
 
+/**
+ * DSL for [com.kanvas.fx.core.VisibilityConfig].
+ */
 class VisibilityBuilder internal constructor(
     private val scene: Scene,
 ) {
+    /**
+     * Enables or disables scene rendering visibility checks.
+     */
     fun enabled(value: Boolean) {
         scene.visibility.enabled = value
     }
 
+    /**
+     * Shows renderer diagnostics such as culled and rendered entity counts.
+     */
     fun debugOverlay(value: Boolean) {
         scene.visibility.debugOverlay = value
     }
 }
 
+/**
+ * DSL for [com.kanvas.fx.core.RenderQualityConfig].
+ */
 class RenderQualityBuilder internal constructor(
     private val scene: Scene,
 ) {
+    /** Enables material effects and runtime shader passes where supported. */
     fun effectsEnabled(value: Boolean) {
         scene.renderQuality.effectsEnabled = value
     }
 
+    /** Sets the maximum number of lights evaluated per rendered object. */
     fun maxLightsPerObject(value: Int) {
         require(value >= 0) { "maxLightsPerObject must be >= 0." }
         scene.renderQuality.maxLightsPerObject = value
     }
 
+    /** Sets glow quality multiplier; higher values may cost more GPU time. */
     fun glowQuality(value: Float) {
         require(value.isFinite() && value >= 0f) { "glowQuality must be finite and >= 0." }
         scene.renderQuality.glowQuality = value
@@ -531,6 +613,8 @@ class SystemsBuilder internal constructor() {
 
 /**
  * Transform mutation DSL.
+ *
+ * Values are stored in [TransformComponent] and interpreted in world space.
  */
 class TransformBuilder internal constructor(
     private var value: TransformComponent,
@@ -560,9 +644,15 @@ class TransformBuilder internal constructor(
     internal fun build(): TransformComponent = value
 }
 
+/**
+ * Bounds construction DSL for [BoundsComponent].
+ */
 class BoundsBuilder internal constructor(
     private var value: BoundsComponent,
 ) {
+    /**
+     * Sets explicit axis-aligned bounds.
+     */
     fun aabb(
         left: Float,
         top: Float,
@@ -572,6 +662,9 @@ class BoundsBuilder internal constructor(
         value = BoundsComponent(left = left, top = top, right = right, bottom = bottom)
     }
 
+    /**
+     * Sets bounds from top-left position and size.
+     */
     fun rect(
         x: Float,
         y: Float,
@@ -582,6 +675,9 @@ class BoundsBuilder internal constructor(
         value = BoundsComponent(left = x, top = y, right = x + width, bottom = y + height)
     }
 
+    /**
+     * Sets square bounds that fully contain a circle.
+     */
     fun circle(
         centerX: Float,
         centerY: Float,
@@ -601,6 +697,8 @@ class BoundsBuilder internal constructor(
 
 /**
  * Reusable template definition for entity construction.
+ *
+ * Templates are stored by [EngineBuilder] and applied by [EntitiesBuilder.spawn].
  */
 data class EntityTemplate(
     val name: String,

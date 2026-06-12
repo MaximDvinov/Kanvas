@@ -28,6 +28,26 @@ class EngineSceneLifecycleTest {
     }
 
     @Test
+    fun addCurrentSceneAfterStartInvokesLifecycle() {
+        val events = mutableListOf<String>()
+        val engine = Engine()
+        val first = Scene("first").apply {
+            onStart = { events += "first-start" }
+            onStop = { events += "first-stop" }
+        }
+        val second = Scene("second").apply {
+            onStart = { events += "second-start" }
+        }
+
+        engine.addScene(first, setCurrent = true)
+        engine.start()
+        engine.addScene(second, setCurrent = true)
+
+        assertEquals(listOf("first-start", "first-stop", "second-start"), events)
+        assertEquals(second, engine.currentScene)
+    }
+
+    @Test
     fun pendingSpawnAndRemoveAreAppliedAfterSceneSwitch() {
         val engine = Engine()
         val first = Scene("first")

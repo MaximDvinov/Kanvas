@@ -9,6 +9,7 @@ actual fun defaultResourceResolver(): ResourceResolver = ResourceResolver { path
     val candidates = listOf(
         normalized,
         "composeResources/$normalized",
+        "composeResources/com.kanvas.fx.shared.generated.resources/files/$normalized",
         "composeResources/kanvas.planetsample.shared.generated.resources/files/$normalized",
     )
     for (candidate in candidates) {
@@ -28,13 +29,13 @@ private fun fetchBytesSync(path: String): ByteArray? {
         request.open("GET", path, false)
         request.overrideMimeType("text/plain; charset=x-user-defined")
         request.send()
-        if (request.status.toInt() !in 200..299) return null
+        val status = request.status.toInt()
+        if (status !in 200..299 && status != 0) return null
         val text = request.responseText ?: return null
-        val result = ByteArray(text.length)
-        for (i in text.indices) {
-            result[i] = (text[i].code and 0xFF).toByte()
+        if (status == 0 && text.isEmpty()) return null
+        ByteArray(text.length) { i ->
+            (text[i].code and 0xFF).toByte()
         }
-        result
     } catch (_: Throwable) {
         null
     }

@@ -3,7 +3,27 @@ package com.kanvas.fx.core
 import com.kanvas.fx.render.Renderer2D
 
 /**
- * Main simulation runtime that manages scene lifecycle and simulation clock.
+ * Main simulation runtime that owns scene lifecycle, input dispatch, rendering, and the
+ * simulation clock.
+ *
+ * Typical usage:
+ * ```kotlin
+ * val engine = engine {
+ *     scene("main", setCurrent = true) {
+ *         onUpdate { frame ->
+ *             println("Frame ${frame.frameIndex}: ${frame.deltaTimeSeconds}s")
+ *         }
+ *     }
+ * }
+ *
+ * EngineCanvas(engine = engine, modifier = Modifier.fillMaxSize())
+ * ```
+ *
+ * Runtime notes:
+ * - [Engine] is mutable runtime state, not immutable UI model.
+ * - [tick] is the authoritative update entry point used by hosts such as `EngineCanvas`.
+ * - scene transitions should go through [switchScene], [switchSceneOrNull], or [addScene].
+ * - [renderCurrentScene] must be called after the host creates a [Renderer2D].
  *
  * @property config engine runtime configuration.
  */
@@ -41,17 +61,36 @@ class Engine(
     var onSceneChanged: (Scene) -> Unit = {}
 
     /**
-     * Registers a scene in this engine.
+     * Registers or replaces a scene in this engine.
+     *
+     * If [setCurrent] is true and the engine has already started, the currently active
+     * scene is stopped before [scene] is started.
+     *
+     * ```kotlin
+     * engine.addScene(Scene("pause"), setCurrent = false)
+     * engine.switchScene("pause")
+     * ```
      */
     fun addScene(scene: Scene, setCurrent: Boolean = currentScene == null) {
         stateLock.withLock {
             scenes[scene.name] = scene
-            if (setCurrent) currentScene = scene
+            if (setCurrent) {
+                if (started) {
+                    switchSceneLocked(scene)
+                } else {
+                    currentScene = scene
+                }
+            }
         }
     }
 
     /**
-     * Switches active scene by name.
+     * Switches the active scene by name.
+     *
+     * The old scene receives `onStop`, the new scene receives `onStart` when the engine is
+     * running, and [onSceneChanged] is invoked after the switch.
+     *
+     * @throws IllegalStateException when no scene with [name] is registered.
      */
     fun switchScene(name: String) {
         stateLock.withLock {
@@ -110,7 +149,11 @@ class Engine(
     }
 
     /**
-     * Dispatches input event to current scene.
+     * Dispatches an input event to the current scene.
+     *
+     * Hosts normally call this after translating platform input to [EngineInputEvent].
+     * The scene forwards the event to camera controls, scene-level input handlers, and
+     * enabled entities.
      */
     fun dispatchInput(event: EngineInputEvent) {
         stateLock.withLock {
@@ -119,9 +162,18 @@ class Engine(
     }
 
     /**
-     * Creates object in current scene.
+     * Creates an object in the current scene.
      *
-     * @return handle to created object, or null when there is no current scene.
+     * The object is enqueued through [SceneObjects], so it becomes active on the next scene
+     * queue flush.
+     *
+     * ```kotlin
+     * engine.addObjectToCurrentScene("coin-1") {
+     *     transform { position(120f, 80f) }
+     * }
+     * ```
+     *
+     * @return handle to the created object, or null when there is no current scene.
      */
     fun addObjectToCurrentScene(
         id: String,
@@ -217,7 +269,9 @@ class Engine(
     }
 
     /**
-     * Renders current scene into [renderer].
+     * Renders the current scene into [renderer].
+     *
+     * This does not advance simulation time. Call [tick] separately from the host frame loop.
      */
     fun renderCurrentScene(renderer: Renderer2D) {
         stateLock.withLock {
@@ -230,10 +284,21 @@ class Engine(
     }
 
     /**
-     * Advances engine time by real frame delta.
+     * Advances engine time by a real frame delta.
      *
      * Applies global and scene time scales and respects fixed-step scheduler
      * from [EngineConfig.clock].
+     *
+     * In fixed-step mode:
+     * - accumulated time is stepped by [EngineClock.fixedTimeStepSeconds];
+     * - catch-up is capped by [EngineClock.maxSubstepsPerFrame];
+     * - accumulator is damped when the limit is reached.
+     *
+     * ```kotlin
+     * // Variable host loop:
+     * engine.tick(realDeltaSeconds)
+     * engine.renderCurrentScene(renderer)
+     * ```
      */
     fun tick(realDeltaTimeSeconds: Float) {
         stateLock.withLock {
@@ -268,6 +333,8 @@ class Engine(
 
     /**
      * Advances exactly one simulation step even when paused.
+     *
+     * Useful for deterministic debugging and inspector tooling.
      */
     fun stepOnce() {
         stateLock.withLock {
@@ -326,6 +393,15 @@ class Engine(
 /**
  * Fixed-step simulation clock settings.
  *
+ * Use the default fixed step for deterministic gameplay and physics. Set
+ * [fixedTimeStepSeconds] to null for variable-step updates when the simulation is purely
+ * visual or already handles variable deltas.
+ *
+ * ```kotlin
+ * val deterministic = EngineConfig(clock = EngineClock(1f / 120f))
+ * val variable = EngineConfig(clock = EngineClock(fixedTimeStepSeconds = null))
+ * ```
+ *
  * @property fixedTimeStepSeconds fixed update step, or null for variable-step mode.
  * @property maxSubstepsPerFrame maximum number of catch-up substeps per frame.
  */
@@ -339,6 +415,9 @@ data class EngineClock(
 /**
  * Engine runtime configuration container.
  *
+ * Pass this to [Engine] or the `engine {}` DSL to configure scheduler behavior before
+ * scenes are created.
+ *
  * @property clock fixed-step clock configuration.
  */
 data class EngineConfig(
@@ -346,7 +425,10 @@ data class EngineConfig(
 )
 
 /**
- * Frame context passed to systems and entity behaviors.
+ * Frame context passed to systems, scene callbacks, and entity behaviors.
+ *
+ * Values are expressed in simulation time after global and scene-local time scales are
+ * applied. In fixed-step mode, [deltaTimeSeconds] is the fixed step for each substep.
  *
  * @property deltaTimeSeconds delta time for current update step in simulation seconds.
  * @property elapsedSeconds total elapsed simulation time.

@@ -5,6 +5,24 @@ import com.kanvas.fx.core.SystemPhase
 
 /**
  * Adds Barnes-Hut gravity as a scene system through the generic systems DSL.
+ *
+ * [bodiesProvider] is evaluated on every update, so it may return a live list owned by the
+ * game model. Bodies are mutated in place by [BarnesHutGravitySystem].
+ *
+ * ```kotlin
+ * val bodies = mutableListOf<GravityBody>()
+ *
+ * engine {
+ *     scene("orbit") {
+ *         systems {
+ *             gravityBarnesHut(
+ *                 bodiesProvider = { bodies },
+ *                 gravityConstant = 4_000f,
+ *             )
+ *         }
+ *     }
+ * }
+ * ```
  */
 fun SystemsBuilder.gravityBarnesHut(
     bodiesProvider: () -> List<GravityBody>,
