@@ -2,6 +2,7 @@ import org.gradle.api.publish.PublishingExtension
 import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.jvm.tasks.Jar
 import org.gradle.plugins.signing.SigningExtension
+import java.util.Base64
 
 plugins {
     alias(libs.plugins.kotlin.multiplatform) apply false
@@ -100,9 +101,14 @@ subprojects {
         }
 
         extensions.configure<SigningExtension>("signing") {
-            val signingKey = providers.environmentVariable("SIGNING_KEY")
-                .orElse(providers.gradleProperty("signingInMemoryKey"))
-                .orNull
+            val signingKeyBase64 = providers.environmentVariable("SIGNING_KEY_BASE64").orNull
+            val signingKey = if (!signingKeyBase64.isNullOrBlank()) {
+                String(Base64.getDecoder().decode(signingKeyBase64))
+            } else {
+                providers.environmentVariable("SIGNING_KEY")
+                    .orElse(providers.gradleProperty("signingInMemoryKey"))
+                    .orNull
+            }
             val signingPassword = providers.environmentVariable("SIGNING_PASSWORD")
                 .orElse(providers.gradleProperty("signingInMemoryKeyPassword"))
                 .orNull

@@ -35,13 +35,23 @@ Add these repository secrets:
 ```text
 MAVEN_CENTRAL_USERNAME
 MAVEN_CENTRAL_PASSWORD
-SIGNING_KEY
+SIGNING_KEY_BASE64
 SIGNING_PASSWORD
 ```
 
 `MAVEN_CENTRAL_USERNAME` and `MAVEN_CENTRAL_PASSWORD` must be the Central Portal token username and token password, not the account password.
 
-`SIGNING_KEY` must contain the ASCII-armored private PGP key. `SIGNING_PASSWORD` is the key passphrase.
+`SIGNING_KEY_BASE64` must contain the base64-encoded ASCII-armored private PGP key. `SIGNING_PASSWORD` is the key passphrase.
+
+Generate `SIGNING_KEY_BASE64` locally:
+
+```bash
+gpg --batch --pinentry-mode loopback \
+  --passphrase "your-key-passphrase" \
+  --armor --export-secret-keys <KEY_ID> | base64 | tr -d '\n'
+```
+
+Plain multiline `SIGNING_KEY` is still supported for local use, but `SIGNING_KEY_BASE64` is preferred in GitHub Actions because it avoids broken multiline secret formatting.
 
 Optional repository variable:
 
@@ -122,7 +132,7 @@ Use this only if GitHub Actions is unavailable:
 ```bash
 export MAVEN_CENTRAL_USERNAME="token-username"
 export MAVEN_CENTRAL_PASSWORD="token-password"
-export SIGNING_KEY="$(cat private-key.asc)"
+export SIGNING_KEY_BASE64="$(base64 < private-key.asc | tr -d '\n')"
 export SIGNING_PASSWORD="your-key-passphrase"
 
 ./gradlew publishAllPublicationsToMavenCentralStagingRepository
