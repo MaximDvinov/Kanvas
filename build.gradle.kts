@@ -103,7 +103,7 @@ subprojects {
         extensions.configure<SigningExtension>("signing") {
             val signingKeyBase64 = providers.environmentVariable("SIGNING_KEY_BASE64").orNull
             val signingKey = if (!signingKeyBase64.isNullOrBlank()) {
-                String(Base64.getDecoder().decode(signingKeyBase64))
+                String(Base64.getMimeDecoder().decode(signingKeyBase64))
             } else {
                 providers.environmentVariable("SIGNING_KEY")
                     .orElse(providers.gradleProperty("signingInMemoryKey"))
