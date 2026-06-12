@@ -9,7 +9,7 @@ This project publishes the public library modules:
 
 ## Distribution Targets
 
-Maven Central is the primary public distribution target. GitHub Packages is kept as a secondary registry.
+Maven Central is the primary public distribution target. GitHub Packages is kept as a secondary registry and must not block Central publishing.
 
 Maven Central publishing uses Sonatype Central Portal through the OSSRH Staging compatibility endpoint:
 
@@ -26,7 +26,7 @@ After Gradle uploads the Maven artifacts, CI calls the Central Portal manual upl
 3. Generate a Central Portal user token.
 4. Create a PGP key for artifact signing.
 
-Maven Central releases are immutable. If a bad version is released, publish a new version instead of trying to overwrite it.
+Maven Central and GitHub Packages releases are immutable. If a bad version is released, publish a new version instead of trying to overwrite it.
 
 ## Required GitHub Secrets
 
@@ -109,9 +109,9 @@ The `Publish` workflow will:
 
 1. Run JVM tests for the core library modules.
 2. Verify local Maven publications.
-3. Publish artifacts to GitHub Packages.
-4. Publish signed artifacts to Maven Central staging.
-5. Upload the staging repository into the Central Portal and publish automatically after validation.
+3. Publish signed artifacts to Maven Central staging.
+4. Upload the staging repository into the Central Portal and publish automatically after validation.
+5. Publish artifacts to GitHub Packages as a best-effort secondary registry.
 
 After the workflow completes, verify the deployment status in the Central Portal.
 

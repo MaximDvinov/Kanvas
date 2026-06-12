@@ -33,12 +33,6 @@ jobs:
       - name: Verify library publications
         run: ./gradlew publishAllPublicationsToLocalBuildRepository
 
-      - name: Publish to GitHub Packages
-        run: ./gradlew publishAllPublicationsToGitHubPackagesRepository
-        env:
-          GITHUB_ACTOR: ${{ github.actor }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Publish to Maven Central staging
         if: ${{ startsWith(github.ref, 'refs/tags/') }}
         run: ./gradlew publishAllPublicationsToMavenCentralStagingRepository
@@ -60,3 +54,11 @@ jobs:
             -X POST \
             -H "Authorization: Bearer $token" \
             "https://ossrh-staging-api.central.sonatype.com/manual/upload/defaultRepository/${MAVEN_CENTRAL_NAMESPACE}?publishing_type=automatic"
+
+      - name: Publish to GitHub Packages
+        if: ${{ startsWith(github.ref, 'refs/tags/') }}
+        continue-on-error: true
+        run: ./gradlew publishAllPublicationsToGitHubPackagesRepository
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
