@@ -40,13 +40,6 @@ subprojects {
             else -> "Kanvas Kotlin Multiplatform 2D runtime library module."
         }
 
-        val javadocJar = tasks.register<Jar>("javadocJar") {
-            archiveClassifier.set("javadoc")
-            from(rootProject.file("README.md")) {
-                into("META-INF")
-            }
-        }
-
         extensions.configure<PublishingExtension>("publishing") {
             repositories {
                 maven {
@@ -74,7 +67,16 @@ subprojects {
             }
 
             publications.withType<MavenPublication>().configureEach {
-                artifact(javadocJar)
+                val publicationName = name
+                val publicationJavadocJar = tasks.register<Jar>("${publicationName}JavadocJar") {
+                    archiveBaseName.set("${project.name}-$publicationName")
+                    archiveClassifier.set("javadoc")
+                    from(rootProject.file("README.md")) {
+                        into("META-INF")
+                    }
+                }
+
+                artifact(publicationJavadocJar)
                 pom {
                     name.set("Kanvas ${project.name}")
                     description.set(moduleDescription)
