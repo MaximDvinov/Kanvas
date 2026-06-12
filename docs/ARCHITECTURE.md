@@ -11,7 +11,7 @@
 1. Core (`:engine`)
 2. Systems/extensions (`:enginePhysics`, `:engineGravityBarnesHut`)
 3. Object kits (`:engineWorldObjectsKit`)
-4. Applications/samples (`:desktopApp`, `:planetSample:*`, `:flappySample:*`)
+4. Applications/samples (`:samples:planetSample:*`, `:samples:flappySample:*`, `:samples:planetMergeSample:*`)
 
 ## Runtime Model
 

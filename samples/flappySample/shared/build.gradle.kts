@@ -26,6 +26,9 @@ kotlin {
             implementation(project(":enginePhysics"))
             implementation(project(":engineWorldObjectsKit"))
         }
+        commonTest.dependencies {
+            implementation(kotlin("test"))
+        }
     }
 }
 

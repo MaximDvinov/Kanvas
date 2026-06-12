@@ -8,13 +8,13 @@
 - License URL: https://creativecommons.org/publicdomain/zero/1.0/
 - Accessed: 2026-05-15
 - Used in this project:
-  - `desktopApp/src/jvmMain/resources/textures/planets/planet00.png` through `planet09.png`
-  - `desktopApp/src/jvmMain/resources/textures/asteroids/noise24.png`
-  - `desktopApp/src/jvmMain/resources/textures/asteroids/noise25.png`
-  - `desktopApp/src/jvmMain/resources/textures/asteroids/noise26.png`
-  - `desktopApp/src/jvmMain/resources/textures/asteroids/noise27.png`
-  - `desktopApp/src/jvmMain/resources/textures/asteroids/sphere2.png`
-  - `desktopApp/src/jvmMain/resources/textures/stars/light0.png` through `light10.png` (kept as downloaded source material, not used for runtime star sprites)
+  - `samples/planetSample/shared/src/commonMain/composeResources/files/textures/planets/planet00.png` through `planet09.png`
+  - `samples/planetSample/shared/src/commonMain/composeResources/files/textures/asteroids/noise24.png`
+  - `samples/planetSample/shared/src/commonMain/composeResources/files/textures/asteroids/noise25.png`
+  - `samples/planetSample/shared/src/commonMain/composeResources/files/textures/asteroids/noise26.png`
+  - `samples/planetSample/shared/src/commonMain/composeResources/files/textures/asteroids/noise27.png`
+  - `samples/planetSample/shared/src/commonMain/composeResources/files/textures/asteroids/sphere2.png`
+  - `samples/planetSample/shared/src/commonMain/composeResources/files/textures/stars/light0.png` through `light10.png` (kept as downloaded source material, not used for runtime star sprites)
 
 ## OpenGameArt Star
 
@@ -25,7 +25,7 @@
 - License URL: https://creativecommons.org/publicdomain/zero/1.0/
 - Accessed: 2026-05-15
 - Used in this project:
-  - `desktopApp/src/jvmMain/resources/textures/stars/star.png`
+  - `samples/planetSample/shared/src/commonMain/composeResources/files/textures/stars/star.png`
 
 ## OpenGameArt Shiny Sun
 
@@ -36,7 +36,7 @@
 - License URL: https://creativecommons.org/publicdomain/zero/1.0/
 - Accessed: 2026-05-15
 - Used in this project:
-  - `desktopApp/src/jvmMain/resources/textures/stars/sun_shiny.png`
+  - `samples/planetSample/shared/src/commonMain/composeResources/files/textures/stars/sun_shiny.png`
 
 ## OpenGameArt Planet Sprite Pack
 
@@ -47,6 +47,39 @@
 - License URL: https://creativecommons.org/publicdomain/zero/1.0/
 - Accessed: 2026-05-15
 - Downloaded into this project:
-  - `desktopApp/src/jvmMain/resources/textures/planets/pucci/*.png`
+  - `samples/planetSample/shared/src/commonMain/composeResources/files/textures/planets/pucci/*.png`
 - Registered by the demo:
   - individual planet sprites from the pack; the wide `Keplerf_Spriteclip.png` strip is kept as source material but is not registered as a runtime planet texture.
+
+## Solar System Scope Planet Textures
+
+- Source: https://www.solarsystemscope.com/textures/
+- Download base: https://www.solarsystemscope.com/textures/download/
+- License: Creative Commons Attribution 4.0 International (CC BY 4.0)
+- License URL: https://creativecommons.org/licenses/by/4.0/
+- Accessed: 2026-05-29
+- Used in this project:
+  - `samples/planetMergeSample/shared/src/commonMain/composeResources/files/textures/planets/mercury.jpg`
+  - `samples/planetMergeSample/shared/src/commonMain/composeResources/files/textures/planets/venus.jpg`
+  - `samples/planetMergeSample/shared/src/commonMain/composeResources/files/textures/planets/earth.jpg`
+  - `samples/planetMergeSample/shared/src/commonMain/composeResources/files/textures/planets/mars.jpg`
+  - `samples/planetMergeSample/shared/src/commonMain/composeResources/files/textures/planets/jupiter.jpg`
+  - `samples/planetMergeSample/shared/src/commonMain/composeResources/files/textures/planets/saturn.jpg`
+  - `samples/planetMergeSample/shared/src/commonMain/composeResources/files/textures/planets/uranus.jpg`
+  - `samples/planetMergeSample/shared/src/commonMain/composeResources/files/textures/planets/neptune.jpg`
+
+## Pixabay Cartoon Solar System Planets
+
+- Source page: https://pixabay.com/vectors/solar-system-planets-space-6282194/
+- License: Pixabay Content License (free use)
+- License URL: https://pixabay.com/service/license-summary/
+- Accessed: 2026-05-29
+- Used in this project:
+  - `samples/planetMergeSample/shared/src/commonMain/composeResources/files/textures/planets/mercury_cartoon.png`
+  - `samples/planetMergeSample/shared/src/commonMain/composeResources/files/textures/planets/venus_cartoon.png`
+  - `samples/planetMergeSample/shared/src/commonMain/composeResources/files/textures/planets/earth_cartoon.png`
+  - `samples/planetMergeSample/shared/src/commonMain/composeResources/files/textures/planets/mars_cartoon.png`
+  - `samples/planetMergeSample/shared/src/commonMain/composeResources/files/textures/planets/jupiter_cartoon.png`
+  - `samples/planetMergeSample/shared/src/commonMain/composeResources/files/textures/planets/saturn_cartoon.png`
+  - `samples/planetMergeSample/shared/src/commonMain/composeResources/files/textures/planets/uranus_cartoon.png`
+  - `samples/planetMergeSample/shared/src/commonMain/composeResources/files/textures/planets/neptune_cartoon.png`

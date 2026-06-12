@@ -10,8 +10,8 @@
 ## Development Setup
 
 ```bash
-./gradlew :desktopApp:build
-./gradlew :desktopApp:run
+./gradlew :samples:planetSample:desktop:build
+./gradlew :samples:planetSample:desktop:run
 ```
 
 ## Code Style
