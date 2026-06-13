@@ -7,7 +7,9 @@ plugins {
 
 kotlin {
     jvmToolchain(17)
-    androidTarget()
+    androidTarget {
+        publishLibraryVariants("release")
+    }
     jvm()
     wasmJs { browser() }
     iosArm64()
