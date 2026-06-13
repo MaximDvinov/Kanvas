@@ -14,11 +14,11 @@ plugins {
 }
 
 val kanvasLibraryModules = setOf(
-    "engine",
-    "engineComposeDsl",
-    "enginePhysics",
-    "engineGravityBarnesHut",
-    "engineWorldObjectsKit",
+    ":engine",
+    ":engineComposeDsl",
+    ":enginePhysics",
+    ":engineGravityBarnesHut",
+    ":engineWorldObjectsKit",
 )
 
 allprojects {
@@ -27,18 +27,18 @@ allprojects {
 }
 
 subprojects {
-    if (name !in kanvasLibraryModules) return@subprojects
+    if (path !in kanvasLibraryModules) return@subprojects
 
     pluginManager.withPlugin("org.jetbrains.kotlin.multiplatform") {
         pluginManager.apply("maven-publish")
         pluginManager.apply("signing")
 
-        val moduleDescription = when (name) {
-            "engine" -> "Core Kotlin Multiplatform 2D runtime for Compose applications."
-            "engineComposeDsl" -> "Compose-first declarative game DSL and host integration for Kanvas."
-            "enginePhysics" -> "Optional 2D physics systems and DSL extensions for Kanvas."
-            "engineGravityBarnesHut" -> "Barnes-Hut n-body gravity simulation extension for Kanvas."
-            "engineWorldObjectsKit" -> "Ready-to-use 2D world object templates for Kanvas scenes."
+        val moduleDescription = when (path) {
+            ":engine" -> "Core Kotlin Multiplatform 2D runtime for Compose applications."
+            ":engineComposeDsl" -> "Compose-first declarative game DSL and host integration for Kanvas."
+            ":enginePhysics" -> "Optional 2D physics systems and DSL extensions for Kanvas."
+            ":engineGravityBarnesHut" -> "Barnes-Hut n-body gravity simulation extension for Kanvas."
+            ":engineWorldObjectsKit" -> "Ready-to-use 2D world object templates for Kanvas scenes."
             else -> "Kanvas Kotlin Multiplatform 2D runtime library module."
         }
 
