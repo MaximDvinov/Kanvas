@@ -29,7 +29,9 @@ import androidx.compose.ui.unit.sp
 import com.kanvas.fx.compose.EngineCanvas
 import com.kanvas.fx.flappySample.domain.FlappyPhase
 import com.kanvas.fx.flappySample.engine.createFlappyRuntime
+import kotlinx.coroutines.delay
 import kotlin.math.max
+import kotlin.time.Duration.Companion.milliseconds
 
 @Composable
 fun FlappyGameApp() {
@@ -39,7 +41,7 @@ fun FlappyGameApp() {
 
     LaunchedEffect(runtime) {
         while (true) {
-            kotlinx.coroutines.delay(16)
+            delay(16.milliseconds)
             state = runtime.controller.state
         }
     }

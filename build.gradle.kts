@@ -15,6 +15,7 @@ plugins {
 
 val kanvasLibraryModules = setOf(
     "engine",
+    "engineComposeDsl",
     "enginePhysics",
     "engineGravityBarnesHut",
     "engineWorldObjectsKit",
@@ -34,6 +35,7 @@ subprojects {
 
         val moduleDescription = when (name) {
             "engine" -> "Core Kotlin Multiplatform 2D runtime for Compose applications."
+            "engineComposeDsl" -> "Compose-first declarative game DSL and host integration for Kanvas."
             "enginePhysics" -> "Optional 2D physics systems and DSL extensions for Kanvas."
             "engineGravityBarnesHut" -> "Barnes-Hut n-body gravity simulation extension for Kanvas."
             "engineWorldObjectsKit" -> "Ready-to-use 2D world object templates for Kanvas scenes."

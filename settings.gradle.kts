@@ -17,6 +17,7 @@ dependencyResolutionManagement {
 }
 
 include(":engine")
+include(":engineComposeDsl")
 include(":enginePhysics")
 include(":engineGravityBarnesHut")
 include(":engineWorldObjectsKit")
