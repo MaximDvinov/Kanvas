@@ -21,6 +21,9 @@ enum class EffectKind {
     Shader,
     Glow,
     BloomLite,
+    Blur,
+    Shadow,
+    Outline,
 }
 
 /** Object-level light model parameters. */

@@ -173,15 +173,297 @@ class Renderer2D(
     private fun styleBrush(style: RenderStyle): Brush {
         val gradient = style.gradient
         if (gradient != null && gradient.colors.isNotEmpty()) {
-            val start = worldToScreen(gradient.start ?: Offset.Zero)
-            val end = worldToScreen(gradient.end ?: Offset(drawScope.size.width, drawScope.size.height))
-            return Brush.linearGradient(
-                colors = gradient.colors,
-                start = start,
-                end = end,
-            )
+            return when (gradient.kind) {
+                GradientKind.Linear -> {
+                    val start = worldToScreen(gradient.start ?: Offset.Zero)
+                    val end = worldToScreen(gradient.end ?: Offset(drawScope.size.width, drawScope.size.height))
+                    Brush.linearGradient(colors = gradient.colors, start = start, end = end)
+                }
+                GradientKind.Radial -> {
+                    val center = worldToScreen(gradient.center ?: Offset.Zero)
+                    Brush.radialGradient(
+                        colors = gradient.colors,
+                        center = center,
+                        radius = (gradient.radius ?: max(drawScope.size.width, drawScope.size.height)) * camera.zoom,
+                    )
+                }
+                GradientKind.Sweep -> Brush.sweepGradient(
+                    colors = gradient.colors,
+                    center = worldToScreen(gradient.center ?: Offset.Zero),
+                )
+            }
         }
         return SolidColor(style.fillColor)
+    }
+
+    private fun styledColor(
+        color: Color,
+        effects: List<RenderEffectStyle>,
+    ): Color {
+        var out = color
+        effects.forEach { effect ->
+            when (effect.kind) {
+                BuiltInEffectKind.Opacity -> out = out.copy(alpha = out.alpha * effect.alpha.coerceIn(0f, 1f))
+                BuiltInEffectKind.ColorFilter -> {
+                    val c = effect.color ?: return@forEach
+                    val t = effect.alpha.coerceIn(0f, 1f)
+                    out = Color(
+                        red = out.red + (c.red - out.red) * t,
+                        green = out.green + (c.green - out.green) * t,
+                        blue = out.blue + (c.blue - out.blue) * t,
+                        alpha = out.alpha,
+                    )
+                }
+                else -> Unit
+            }
+        }
+        return out
+    }
+
+    private fun legacyGlowEffect(
+        glow: GlowStyle,
+        fallbackStrokeWidth: Float,
+    ): RenderEffectStyle {
+        val baseRadius = glow.radius ?: fallbackStrokeWidth * glow.widthMultiplier
+        return RenderEffectStyle(
+            kind = BuiltInEffectKind.Bloom,
+            color = glow.color,
+            alpha = glow.alpha,
+            radius = baseRadius,
+            spread = glow.spread,
+            passes = glow.passes,
+            mode = glow.mode,
+        )
+    }
+
+    private fun allEffects(
+        style: RenderStyle,
+        fallbackStrokeWidth: Float,
+    ): List<RenderEffectStyle> {
+        val legacy = style.glow?.let { listOf(legacyGlowEffect(it, fallbackStrokeWidth)) } ?: emptyList()
+        return legacy + style.effects
+    }
+
+    private fun screenOffset(offset: Offset): Offset = Offset(offset.x * camera.zoom, offset.y * camera.zoom)
+
+    private fun drawEffectGeometry(
+        geometry: PrimitiveGeometry,
+        color: Color,
+        expansionPx: Float,
+        strokeWidthPx: Float,
+        blendMode: BlendMode = BlendMode.SrcOver,
+        offsetPx: Offset = Offset.Zero,
+        fill: Boolean = true,
+    ) {
+        when (geometry) {
+            is PrimitiveGeometry.Circle -> drawScope.drawCircle(
+                color = color,
+                center = geometry.center + offsetPx,
+                radius = (geometry.radius + expansionPx).coerceAtLeast(0f),
+                style = if (fill) Fill else Stroke(strokeWidthPx + expansionPx),
+                blendMode = blendMode,
+            )
+            is PrimitiveGeometry.Line -> drawScope.drawLine(
+                color = color,
+                start = geometry.start + offsetPx,
+                end = geometry.end + offsetPx,
+                strokeWidth = (strokeWidthPx + expansionPx * 2f).coerceAtLeast(0.1f),
+                blendMode = blendMode,
+            )
+            is PrimitiveGeometry.Rect -> {
+                val topLeft = geometry.topLeft + offsetPx - Offset(expansionPx, expansionPx)
+                val size = Size(
+                    width = geometry.size.width + expansionPx * 2f,
+                    height = geometry.size.height + expansionPx * 2f,
+                )
+                drawScope.drawRect(
+                    color = color,
+                    topLeft = topLeft,
+                    size = size,
+                    style = if (fill) Fill else Stroke(strokeWidthPx + expansionPx),
+                    blendMode = blendMode,
+                )
+            }
+            is PrimitiveGeometry.Texture -> {
+                val topLeft = geometry.topLeft + offsetPx - Offset(expansionPx, expansionPx)
+                val size = Size(
+                    width = geometry.size.width + expansionPx * 2f,
+                    height = geometry.size.height + expansionPx * 2f,
+                )
+                drawScope.drawRect(
+                    color = color,
+                    topLeft = topLeft,
+                    size = size,
+                    style = if (fill) Fill else Stroke(strokeWidthPx + expansionPx),
+                    blendMode = blendMode,
+                )
+            }
+            is PrimitiveGeometry.Polygon -> drawScope.withTransform({
+                translate(left = offsetPx.x, top = offsetPx.y)
+            }) {
+                drawPath(
+                    path = geometry.path,
+                    color = color,
+                    style = if (fill) Fill else Stroke(strokeWidthPx + expansionPx),
+                    blendMode = blendMode,
+                )
+            }
+        }
+    }
+
+    private fun drawSoftEffect(
+        geometry: PrimitiveGeometry,
+        color: Color,
+        radiusPx: Float,
+        alpha: Float,
+        passes: Int,
+        spread: Float,
+        strokeWidthPx: Float,
+        blendMode: BlendMode,
+        offsetPx: Offset = Offset.Zero,
+    ) {
+        if (geometry is PrimitiveGeometry.Circle && radiusPx > 0f) {
+            val outerRadius = (geometry.radius + radiusPx * spread.coerceAtLeast(0f)).coerceAtLeast(geometry.radius)
+            drawScope.drawCircle(
+                brush = Brush.radialGradient(
+                    colors = listOf(
+                        color.copy(alpha = (alpha * 0.52f).coerceIn(0f, 1f)),
+                        color.copy(alpha = (alpha * 0.22f).coerceIn(0f, 1f)),
+                        color.copy(alpha = (alpha * 0.07f).coerceIn(0f, 1f)),
+                        color.copy(alpha = 0f),
+                    ),
+                    center = geometry.center + offsetPx,
+                    radius = outerRadius,
+                ),
+                center = geometry.center + offsetPx,
+                radius = outerRadius,
+                blendMode = blendMode,
+            )
+            return
+        }
+
+        val safePasses = max(passes, 18).coerceIn(1, 32)
+        repeat(safePasses) { index ->
+            val t = (index + 1).toFloat() / safePasses.toFloat()
+            val expansion = radiusPx * spread.coerceAtLeast(0f) * t
+            val falloff = (1f - t).coerceIn(0f, 1f)
+            val passAlpha = alpha * falloff * falloff / safePasses.toFloat()
+            drawEffectGeometry(
+                geometry = geometry,
+                color = color.copy(alpha = passAlpha.coerceIn(0f, 1f)),
+                expansionPx = expansion,
+                strokeWidthPx = strokeWidthPx,
+                blendMode = blendMode,
+                offsetPx = offsetPx,
+            )
+        }
+    }
+
+    private fun drawBlurLikeEffect(
+        geometry: PrimitiveGeometry,
+        color: Color,
+        radiusPx: Float,
+        alpha: Float,
+        passes: Int,
+        spread: Float,
+        mode: GlowMode,
+        strokeWidthPx: Float,
+        blendMode: BlendMode,
+        offsetPx: Offset = Offset.Zero,
+    ) {
+        val shouldTryNative = mode == GlowMode.Blur || mode == GlowMode.Auto
+        if (shouldTryNative && drawNativeBlurredGeometry(drawScope, geometry, color.copy(alpha = alpha), radiusPx, offsetPx, blendMode)) {
+            return
+        }
+        drawSoftEffect(
+            geometry = geometry,
+            color = color,
+            radiusPx = radiusPx,
+            alpha = alpha,
+            passes = passes,
+            spread = spread,
+            strokeWidthPx = strokeWidthPx,
+            blendMode = blendMode,
+            offsetPx = offsetPx,
+        )
+    }
+
+    private fun applyBuiltInEffects(
+        effects: List<RenderEffectStyle>,
+        geometry: PrimitiveGeometry,
+        baseColor: Color,
+        strokeWidthPx: Float,
+        beforeBase: Boolean,
+    ) {
+        if (!effectsEnabled) return
+        effects.forEach { effect ->
+            val color = effect.color ?: baseColor
+            val radiusPx = effect.radius.coerceAtLeast(0f) * camera.zoom * glowQuality
+            val offsetPx = screenOffset(effect.offset)
+            when (effect.kind) {
+                BuiltInEffectKind.Shadow -> if (beforeBase) {
+                    drawBlurLikeEffect(
+                        geometry = geometry,
+                        color = color,
+                        radiusPx = radiusPx,
+                        alpha = effect.alpha,
+                        passes = effect.passes,
+                        spread = effect.spread,
+                        mode = effect.mode,
+                        strokeWidthPx = strokeWidthPx,
+                        blendMode = BlendMode.SrcOver,
+                        offsetPx = offsetPx,
+                    )
+                }
+                BuiltInEffectKind.Blur -> if (beforeBase) {
+                    drawBlurLikeEffect(
+                        geometry = geometry,
+                        color = baseColor,
+                        radiusPx = radiusPx,
+                        alpha = 0.22f * effect.alpha,
+                        passes = effect.passes,
+                        spread = effect.spread,
+                        mode = effect.mode,
+                        strokeWidthPx = strokeWidthPx,
+                        blendMode = BlendMode.SrcOver,
+                    )
+                }
+                BuiltInEffectKind.Bloom -> if (beforeBase) {
+                    drawBlurLikeEffect(
+                        geometry = geometry,
+                        color = color,
+                        radiusPx = radiusPx,
+                        alpha = effect.alpha,
+                        passes = effect.passes,
+                        spread = effect.spread,
+                        mode = effect.mode,
+                        strokeWidthPx = strokeWidthPx,
+                        blendMode = BlendMode.Screen,
+                    )
+                }
+                BuiltInEffectKind.Outline -> if (!beforeBase) {
+                    drawEffectGeometry(
+                        geometry = geometry,
+                        color = color.copy(alpha = effect.alpha.coerceIn(0f, 1f)),
+                        expansionPx = effect.width.coerceAtLeast(0f) * camera.zoom,
+                        strokeWidthPx = effect.width.coerceAtLeast(0f) * camera.zoom,
+                        fill = false,
+                    )
+                }
+                BuiltInEffectKind.InnerShadow -> if (!beforeBase) {
+                    drawEffectGeometry(
+                        geometry = geometry,
+                        color = color.copy(alpha = effect.alpha.coerceIn(0f, 1f)),
+                        expansionPx = 0f,
+                        strokeWidthPx = effect.width.coerceAtLeast(0f) * camera.zoom,
+                        fill = false,
+                    )
+                }
+                BuiltInEffectKind.Opacity,
+                BuiltInEffectKind.ColorFilter,
+                -> Unit
+            }
+        }
     }
 
     private fun maybeResolveShader(style: RenderStyle): ShaderAsset? {
@@ -316,62 +598,72 @@ class Renderer2D(
             val bounds = boundsWithPadding(geometryBounds(geometry), scaledPadding)
             val circleCenter = Offset(bounds.left + bounds.width * 0.5f, bounds.top + bounds.height * 0.5f)
             val circleRadius = min(bounds.width, bounds.height) * 0.5f
-            val drawAsCircle = geometry is PrimitiveGeometry.Circle || geometry is PrimitiveGeometry.Texture
             when (pass.kind) {
                 EffectKind.Glow -> {
-                    if (drawAsCircle) {
-                        val glowRadius = circleRadius * (1.9f + pass.intensity * 0.35f)
-                        val glowBrush = Brush.radialGradient(
-                            colors = listOf(
-                                pass.color.copy(alpha = (0.26f * pass.intensity).coerceIn(0f, 0.72f)),
-                                pass.color.copy(alpha = (0.11f * pass.intensity).coerceIn(0f, 0.45f)),
-                                pass.color.copy(alpha = (0.03f * pass.intensity).coerceIn(0f, 0.2f)),
-                                pass.color.copy(alpha = 0f),
-                            ),
-                            center = circleCenter,
-                            radius = glowRadius,
-                        )
-                        drawScope.drawCircle(
-                            brush = glowBrush,
-                            center = circleCenter,
-                            radius = glowRadius,
-                            blendMode = pass.blendMode,
-                        )
-                    } else {
-                        drawScope.drawRect(
-                            color = pass.color.copy(alpha = 0.14f * pass.intensity),
-                            topLeft = Offset(bounds.left, bounds.top),
-                            size = Size(bounds.width, bounds.height),
-                            blendMode = pass.blendMode,
-                        )
-                    }
+                    drawBlurLikeEffect(
+                        geometry = geometry,
+                        color = pass.color,
+                        radiusPx = (circleRadius * (0.8f + pass.intensity * 0.45f)).coerceAtLeast(scaledPadding),
+                        alpha = (0.42f * pass.intensity).coerceIn(0f, 1f),
+                        passes = 5,
+                        spread = 1.4f,
+                        mode = GlowMode.Auto,
+                        strokeWidthPx = scaledPadding.coerceAtLeast(1f),
+                        blendMode = pass.blendMode,
+                    )
                 }
                 EffectKind.BloomLite -> {
-                    if (drawAsCircle) {
-                        val bloomRadius = circleRadius * (2.35f + pass.intensity * 0.25f)
-                        val bloomBrush = Brush.radialGradient(
-                            colors = listOf(
-                                pass.color.copy(alpha = (0.09f * pass.intensity).coerceIn(0f, 0.3f)),
-                                pass.color.copy(alpha = (0.035f * pass.intensity).coerceIn(0f, 0.16f)),
-                                pass.color.copy(alpha = 0f),
-                            ),
-                            center = circleCenter,
-                            radius = bloomRadius,
-                        )
-                        drawScope.drawCircle(
-                            brush = bloomBrush,
-                            center = circleCenter,
-                            radius = bloomRadius,
-                            blendMode = BlendMode.Screen,
-                        )
-                    } else {
-                        drawScope.drawRect(
-                            color = pass.color.copy(alpha = 0.09f * pass.intensity),
-                            topLeft = Offset(bounds.left, bounds.top),
-                            size = Size(bounds.width, bounds.height),
-                            blendMode = BlendMode.Screen,
-                        )
-                    }
+                    drawBlurLikeEffect(
+                        geometry = geometry,
+                        color = pass.color,
+                        radiusPx = (circleRadius * (1.15f + pass.intensity * 0.35f)).coerceAtLeast(scaledPadding),
+                        alpha = (0.22f * pass.intensity).coerceIn(0f, 1f),
+                        passes = 6,
+                        spread = 1.65f,
+                        mode = GlowMode.Auto,
+                        strokeWidthPx = scaledPadding.coerceAtLeast(1f),
+                        blendMode = BlendMode.Screen,
+                    )
+                }
+                EffectKind.Blur -> {
+                    drawBlurLikeEffect(
+                        geometry = geometry,
+                        color = baseColor,
+                        radiusPx = pass.paddingPx.coerceAtLeast(pass.intensity) * camera.zoom * glowQuality,
+                        alpha = (0.22f * pass.intensity).coerceIn(0f, 1f),
+                        passes = 4,
+                        spread = 1f,
+                        mode = GlowMode.Auto,
+                        strokeWidthPx = scaledPadding.coerceAtLeast(1f),
+                        blendMode = pass.blendMode,
+                    )
+                }
+                EffectKind.Shadow -> {
+                    drawBlurLikeEffect(
+                        geometry = geometry,
+                        color = pass.color,
+                        radiusPx = pass.paddingPx.coerceAtLeast(4f) * camera.zoom * glowQuality,
+                        alpha = (0.35f * pass.intensity).coerceIn(0f, 1f),
+                        passes = 4,
+                        spread = 1f,
+                        mode = GlowMode.Auto,
+                        strokeWidthPx = scaledPadding.coerceAtLeast(1f),
+                        blendMode = BlendMode.SrcOver,
+                        offsetPx = Offset(
+                            pass.paddingPx * 0.35f * camera.zoom,
+                            pass.paddingPx * 0.35f * camera.zoom,
+                        ),
+                    )
+                }
+                EffectKind.Outline -> {
+                    drawEffectGeometry(
+                        geometry = geometry,
+                        color = pass.color.copy(alpha = pass.intensity.coerceIn(0f, 1f)),
+                        expansionPx = scaledPadding.coerceAtLeast(1f),
+                        strokeWidthPx = scaledPadding.coerceAtLeast(1f),
+                        blendMode = pass.blendMode,
+                        fill = false,
+                    )
                 }
                 EffectKind.Shader -> {
                     val shaderId = pass.shaderId ?: return@forEach
@@ -409,7 +701,6 @@ class Renderer2D(
                                 blendMode = pass.blendMode,
                             )
                         }
-                        else -> Unit
                     }
                 }
             }
@@ -488,16 +779,13 @@ class Renderer2D(
             center = screenCenter,
             radius = screenRadius,
         )
-        runMaterialPasses(EffectPhase.BeforeBase, geometry, color)
-        applyRenderEffect(baseStyle, RenderPhase.Pre, PrimitiveKind.Circle, geometry)
-        val brush = runtimeBrush(baseStyle, geometry) ?: styleBrush(baseStyle)
-        baseStyle.glow?.let { glow ->
-            drawScope.drawCircle(
-                brush = SolidColor((glow.color ?: color).copy(alpha = glow.alpha)),
-                center = screenCenter,
-                radius = screenRadius + (baseStyle.stroke?.width ?: 2f) * glow.widthMultiplier * glowQuality * camera.zoom,
-            )
-        }
+        val effects = allEffects(baseStyle, baseStyle.stroke?.width ?: 2f)
+        val effectiveColor = styledColor(color, effects)
+        val effectiveStyle = baseStyle.copy(fillColor = effectiveColor)
+        runMaterialPasses(EffectPhase.BeforeBase, geometry, effectiveColor)
+        applyRenderEffect(effectiveStyle, RenderPhase.Pre, PrimitiveKind.Circle, geometry)
+        applyBuiltInEffects(effects, geometry, effectiveColor, (baseStyle.stroke?.width ?: 2f) * camera.zoom, beforeBase = true)
+        val brush = runtimeBrush(effectiveStyle, geometry) ?: styleBrush(effectiveStyle)
         drawScope.drawCircle(
             brush = brush,
             center = screenCenter,
@@ -511,8 +799,9 @@ class Renderer2D(
                 style = Stroke(stroke.width * camera.zoom),
             )
         }
-        applyRenderEffect(baseStyle, RenderPhase.Post, PrimitiveKind.Circle, geometry)
-        runMaterialPasses(EffectPhase.AfterBase, geometry, color)
+        applyBuiltInEffects(effects, geometry, effectiveColor, (baseStyle.stroke?.width ?: 2f) * camera.zoom, beforeBase = false)
+        applyRenderEffect(effectiveStyle, RenderPhase.Post, PrimitiveKind.Circle, geometry)
+        runMaterialPasses(EffectPhase.AfterBase, geometry, effectiveColor)
         onDrawCall()
     }
 
@@ -533,25 +822,22 @@ class Renderer2D(
             end = e,
             strokeWidth = width,
         )
-        runMaterialPasses(EffectPhase.BeforeBase, geometry, color)
-        applyRenderEffect(baseStyle, RenderPhase.Pre, PrimitiveKind.Line, geometry)
-        val brush = if (baseStyle.gradient != null) styleBrush(baseStyle) else SolidColor(color)
-        baseStyle.glow?.let { glow ->
-            drawScope.drawLine(
-                color = (glow.color ?: color).copy(alpha = glow.alpha),
-                start = s,
-                end = e,
-                strokeWidth = width * glow.widthMultiplier,
-            )
-        }
+        val effects = allEffects(baseStyle, width)
+        val effectiveColor = styledColor(color, effects)
+        val effectiveStyle = baseStyle.copy(fillColor = effectiveColor)
+        runMaterialPasses(EffectPhase.BeforeBase, geometry, effectiveColor)
+        applyRenderEffect(effectiveStyle, RenderPhase.Pre, PrimitiveKind.Line, geometry)
+        applyBuiltInEffects(effects, geometry, effectiveColor, width, beforeBase = true)
+        val brush = if (effectiveStyle.gradient != null) styleBrush(effectiveStyle) else SolidColor(effectiveColor)
         drawScope.drawLine(
             brush = brush,
             start = s,
             end = e,
             strokeWidth = width,
         )
-        applyRenderEffect(baseStyle, RenderPhase.Post, PrimitiveKind.Line, geometry)
-        runMaterialPasses(EffectPhase.AfterBase, geometry, color)
+        applyBuiltInEffects(effects, geometry, effectiveColor, width, beforeBase = false)
+        applyRenderEffect(effectiveStyle, RenderPhase.Post, PrimitiveKind.Line, geometry)
+        runMaterialPasses(EffectPhase.AfterBase, geometry, effectiveColor)
         onDrawCall()
     }
 
@@ -570,17 +856,14 @@ class Renderer2D(
             topLeft = screenTopLeft,
             size = screenSize,
         )
-        runMaterialPasses(EffectPhase.BeforeBase, geometry, color)
-        applyRenderEffect(baseStyle, RenderPhase.Pre, PrimitiveKind.Rect, geometry)
-        val brush = runtimeBrush(baseStyle, geometry) ?: styleBrush(baseStyle)
-        baseStyle.glow?.let { glow ->
-            drawScope.drawRect(
-                color = (glow.color ?: color).copy(alpha = glow.alpha),
-                topLeft = screenTopLeft,
-                size = screenSize,
-                style = Stroke(((baseStyle.stroke?.width ?: strokeWidth ?: 2f) * glow.widthMultiplier) * camera.zoom),
-            )
-        }
+        val fallbackStroke = baseStyle.stroke?.width ?: strokeWidth ?: 2f
+        val effects = allEffects(baseStyle, fallbackStroke)
+        val effectiveColor = styledColor(color, effects)
+        val effectiveStyle = baseStyle.copy(fillColor = effectiveColor)
+        runMaterialPasses(EffectPhase.BeforeBase, geometry, effectiveColor)
+        applyRenderEffect(effectiveStyle, RenderPhase.Pre, PrimitiveKind.Rect, geometry)
+        applyBuiltInEffects(effects, geometry, effectiveColor, fallbackStroke * camera.zoom, beforeBase = true)
+        val brush = runtimeBrush(effectiveStyle, geometry) ?: styleBrush(effectiveStyle)
         drawScope.drawRect(
             brush = brush,
             topLeft = screenTopLeft,
@@ -596,8 +879,9 @@ class Renderer2D(
                 style = Stroke(it.width * camera.zoom),
             )
         }
-        applyRenderEffect(baseStyle, RenderPhase.Post, PrimitiveKind.Rect, geometry)
-        runMaterialPasses(EffectPhase.AfterBase, geometry, color)
+        applyBuiltInEffects(effects, geometry, effectiveColor, fallbackStroke * camera.zoom, beforeBase = false)
+        applyRenderEffect(effectiveStyle, RenderPhase.Post, PrimitiveKind.Rect, geometry)
+        runMaterialPasses(EffectPhase.AfterBase, geometry, effectiveColor)
         onDrawCall()
     }
 
@@ -620,16 +904,14 @@ class Renderer2D(
             close()
         }
         val geometry = PrimitiveGeometry.Polygon(path = path)
-        runMaterialPasses(EffectPhase.BeforeBase, geometry, color)
-        applyRenderEffect(baseStyle, RenderPhase.Pre, PrimitiveKind.Polygon, geometry)
-        baseStyle.glow?.let { glow ->
-            drawScope.drawPath(
-                path = path,
-                color = (glow.color ?: color).copy(alpha = glow.alpha),
-                style = Stroke(((baseStyle.stroke?.width ?: strokeWidth ?: 2f) * glow.widthMultiplier) * camera.zoom),
-            )
-        }
-        drawScope.drawPath(path = path, brush = styleBrush(baseStyle), style = Fill)
+        val fallbackStroke = baseStyle.stroke?.width ?: strokeWidth ?: 2f
+        val effects = allEffects(baseStyle, fallbackStroke)
+        val effectiveColor = styledColor(color, effects)
+        val effectiveStyle = baseStyle.copy(fillColor = effectiveColor)
+        runMaterialPasses(EffectPhase.BeforeBase, geometry, effectiveColor)
+        applyRenderEffect(effectiveStyle, RenderPhase.Pre, PrimitiveKind.Polygon, geometry)
+        applyBuiltInEffects(effects, geometry, effectiveColor, fallbackStroke * camera.zoom, beforeBase = true)
+        drawScope.drawPath(path = path, brush = styleBrush(effectiveStyle), style = Fill)
         val stroke = baseStyle.stroke ?: strokeWidth?.let { StrokeStyle(color = color, width = it) }
         stroke?.let {
             drawScope.drawPath(
@@ -638,8 +920,9 @@ class Renderer2D(
                 style = Stroke(it.width * camera.zoom),
             )
         }
-        applyRenderEffect(baseStyle, RenderPhase.Post, PrimitiveKind.Polygon, geometry)
-        runMaterialPasses(EffectPhase.AfterBase, geometry, color)
+        applyBuiltInEffects(effects, geometry, effectiveColor, fallbackStroke * camera.zoom, beforeBase = false)
+        applyRenderEffect(effectiveStyle, RenderPhase.Post, PrimitiveKind.Polygon, geometry)
+        runMaterialPasses(EffectPhase.AfterBase, geometry, effectiveColor)
         onDrawCall()
     }
 
@@ -697,24 +980,17 @@ class Renderer2D(
                     topLeft = dstTopLeft,
                     size = dstSize,
                 )
-                runMaterialPasses(EffectPhase.BeforeBase, geometry, tint)
-                applyRenderEffect(baseStyle, RenderPhase.Pre, PrimitiveKind.Texture, geometry)
+                val fallbackStroke = baseStyle.stroke?.width ?: 2f
+                val effects = allEffects(baseStyle, fallbackStroke)
+                val effectiveTint = styledColor(tint, effects)
+                val effectiveStyle = baseStyle.copy(tint = effectiveTint, fillColor = effectiveTint)
+                runMaterialPasses(EffectPhase.BeforeBase, geometry, effectiveTint)
+                applyRenderEffect(effectiveStyle, RenderPhase.Pre, PrimitiveKind.Texture, geometry)
                 val pivot = Offset(
                     x = dstTopLeft.x + dstSize.width * 0.5f,
                     y = dstTopLeft.y + dstSize.height * 0.5f,
                 )
-                baseStyle.glow?.let { glow ->
-                    drawScope.withTransform({
-                        rotate(degrees = rotationDegrees, pivot = pivot)
-                    }) {
-                        drawRect(
-                            color = (glow.color ?: Color.White).copy(alpha = glow.alpha),
-                            topLeft = dstTopLeft,
-                            size = dstSize,
-                            style = Stroke((baseStyle.stroke?.width ?: 2f) * glow.widthMultiplier),
-                        )
-                    }
-                }
+                applyBuiltInEffects(effects, geometry, effectiveTint, fallbackStroke * camera.zoom, beforeBase = true)
                 drawScope.withTransform({
                     rotate(degrees = rotationDegrees, pivot = pivot)
                 }) {
@@ -730,11 +1006,12 @@ class Renderer2D(
                             width = dstSize.width.toInt().coerceAtLeast(1),
                             height = dstSize.height.toInt().coerceAtLeast(1),
                         ),
-                        colorFilter = if (baseStyle.tint == Color.White) null else ColorFilter.tint(baseStyle.tint),
+                        colorFilter = if (effectiveStyle.tint == Color.White) null else ColorFilter.tint(effectiveStyle.tint),
                     )
                 }
-                applyRenderEffect(baseStyle, RenderPhase.Post, PrimitiveKind.Texture, geometry)
-                runMaterialPasses(EffectPhase.AfterBase, geometry, tint)
+                applyBuiltInEffects(effects, geometry, effectiveTint, fallbackStroke * camera.zoom, beforeBase = false)
+                applyRenderEffect(effectiveStyle, RenderPhase.Post, PrimitiveKind.Texture, geometry)
+                runMaterialPasses(EffectPhase.AfterBase, geometry, effectiveTint)
                 baseStyle.stroke?.let { stroke ->
                     drawScope.withTransform({
                         rotate(degrees = rotationDegrees, pivot = pivot)
@@ -743,7 +1020,7 @@ class Renderer2D(
                             color = stroke.color,
                             topLeft = dstTopLeft,
                             size = dstSize,
-                            style = Stroke(stroke.width),
+                            style = Stroke(stroke.width * camera.zoom),
                         )
                     }
                 }

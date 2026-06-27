@@ -7,7 +7,7 @@ The engine stays domain-neutral. Game rules, simulations, AI, economy, and app-s
 
 ## Status
 
-Current version: `0.1.0-alpha.1`
+Current version: `0.2.0-alpha`
 
 Supported targets:
 
@@ -37,7 +37,7 @@ repositories {
 }
 
 dependencies {
-    implementation("io.github.maximdvinov:engine:0.1.0-alpha.1")
+    implementation("io.github.maximdvinov:engine:0.2.0-alpha")
 }
 ```
 
@@ -45,9 +45,9 @@ Optional extensions:
 
 ```kotlin
 dependencies {
-    implementation("io.github.maximdvinov:enginePhysics:0.1.0-alpha.1")
-    implementation("io.github.maximdvinov:engineGravityBarnesHut:0.1.0-alpha.1")
-    implementation("io.github.maximdvinov:engineWorldObjectsKit:0.1.0-alpha.1")
+    implementation("io.github.maximdvinov:enginePhysics:0.2.0-alpha")
+    implementation("io.github.maximdvinov:engineGravityBarnesHut:0.2.0-alpha")
+    implementation("io.github.maximdvinov:engineWorldObjectsKit:0.2.0-alpha")
 }
 ```
 
@@ -160,6 +160,38 @@ fun App() {
 
 `Renderer2D` exposes primitives such as circles, lines, rectangles, polygons, textures, and materials. Rendering is camera-aware when hosted through `EngineCanvas`.
 
+### RenderStyle and Effects
+
+`RenderStyle` now supports world-space gradients and composable built-in effects without custom shaders.
+
+```kotlin
+val style = style {
+    radialGradient(
+        colors = listOf(Color.White, Color(0xFFFF8A65), Color(0xFFFF5252)),
+        center = Offset(160f, 120f),
+        radius = 64f,
+    )
+    glow(color = Color(0xFFFFC107), alpha = 0.45f, radius = 18f)
+    bloom(color = Color(0xFFFF5252), alpha = 0.22f, radius = 28f)
+    shadow(color = Color.Black, alpha = 0.35f, radius = 12f, offset = Offset(6f, 8f))
+    outline(color = Color.White, width = 2f)
+}
+```
+
+Available gradient helpers:
+
+- `linearGradient(...)`
+- `radialGradient(...)`
+- `sweepGradient(...)`
+
+Available built-in effects:
+
+- `glow(...)`, `bloom(...)`, `blur(...)`
+- `shadow(...)`, `innerShadow(...)`, `outline(...)`
+- `opacity(...)`, `colorFilter(...)`
+
+Native blur is implemented per platform where possible, with fallback behavior retained for unsupported cases.
+
 ### Camera2D
 
 `Camera2D` controls world position, zoom, and zoom limits. Pointer input is mapped from screen-space to world-space through the active scene camera.
@@ -185,7 +217,7 @@ Add the physics module:
 
 ```kotlin
 dependencies {
-    implementation("io.github.maximdvinov:enginePhysics:0.1.0-alpha.1")
+    implementation("io.github.maximdvinov:enginePhysics:0.2.0-alpha")
 }
 ```
 
@@ -216,6 +248,7 @@ The repository includes several sample applications:
 
 - `samples/planetSample` (`:samples:planetSample:*`) - multiplatform planet scene sample.
 - `samples/flappySample` (`:samples:flappySample:*`) - Compose game sample.
+- `samples/effectsShowcase` (`:samples:effectsShowcase:desktop`) - desktop showcase for layered effects, textures, and sprite animation.
 - `samples/planetMergeSample` (`:samples:planetMergeSample:*`) - multiplatform merge-style game sample.
 - `:docsSite` and `:docsShowcase` - documentation site and focused browser showcase examples.
 
@@ -223,6 +256,7 @@ Useful commands:
 
 ```bash
 ./gradlew :samples:planetSample:desktop:run
+./gradlew :samples:effectsShowcase:desktop:run
 ./gradlew :engine:jvmTest :enginePhysics:jvmTest
 ./gradlew publishAllPublicationsToLocalBuildRepository
 ```

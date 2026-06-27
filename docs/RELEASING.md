@@ -97,13 +97,13 @@ Signing is required for Maven Central publishing tasks and optional for local pu
 The published version is controlled by `VERSION_NAME` in `gradle.properties`:
 
 ```properties
-VERSION_NAME=0.1.0-alpha.1
+VERSION_NAME=0.2.0-alpha
 ```
 
 Before publishing, move changelog entries from `Unreleased` into a dated version section:
 
 ```md
-## [0.1.0-alpha.1] - YYYY-MM-DD
+## [0.2.0-alpha] - YYYY-MM-DD
 ```
 
 ## Publish from GitHub Actions
@@ -111,7 +111,7 @@ Before publishing, move changelog entries from `Unreleased` into a dated version
 Create and push a version tag:
 
 ```bash
-git tag v0.1.0-alpha.1
+git tag v0.2.0-alpha
 git push origin main --tags
 ```
 

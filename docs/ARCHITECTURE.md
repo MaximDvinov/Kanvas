@@ -24,7 +24,10 @@
 
 - Compose host (`EngineCanvas`) bridges UI lifecycle and input.
 - `Renderer2D` provides primitive drawing API and style abstraction.
-- Render effects are pluggable through `RenderEffect` + `ShaderAsset` hooks.
+- `RenderStyle` provides world-space gradients plus built-in effects such as blur, glow, bloom, shadow, inner shadow, outline, opacity, and color filter.
+- Built-in effects run through a shared pre/post render pipeline, so the same style model applies to primitives and textures.
+- Native blur backends exist per platform where available, with fallback rendering kept in common code.
+- Custom render effects remain pluggable through `RenderEffect` + `ShaderAsset` hooks.
 
 ## Input Model
 
