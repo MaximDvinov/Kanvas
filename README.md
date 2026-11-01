@@ -7,7 +7,7 @@ The engine stays domain-neutral. Game rules, simulations, AI, economy, and app-s
 
 ## Status
 
-Next release: `0.3.0-alpha`
+Current version: `0.3.0-alpha`
 
 Supported targets:
 
@@ -29,7 +29,7 @@ Supported targets:
 
 ## Installation
 
-After `0.3.0-alpha` is published, consumers can use `mavenCentral()`:
+Consumers can use `mavenCentral()`:
 
 ```kotlin
 repositories {

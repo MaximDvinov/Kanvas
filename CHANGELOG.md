@@ -6,6 +6,8 @@ The format is based on Keep a Changelog.
 
 ## [Unreleased]
 
+## [0.3.0-alpha] - 2026-11-01
+
 ### Changed
 - Updated Kotlin to 2.4.21 and Compose Multiplatform to 1.12.2. Consumers must use compatible Kotlin and Compose versions.
 - Migrated the Android targets to the Android Gradle plugin for Kotlin Multiplatform and updated the Android build to SDK 37.1.
