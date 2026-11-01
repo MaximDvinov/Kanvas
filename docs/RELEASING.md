@@ -15,7 +15,7 @@ Each module includes Android, JVM, iOS arm64, iOS simulator arm64, and Wasm JS p
 Register and verify the `io.github.maximdvinov` namespace in the Central Portal, generate a user token, and publish the signing key's public half to a key server. Configure these GitHub repository secrets:
 
 - `MAVEN_CENTRAL_USERNAME` and `MAVEN_CENTRAL_PASSWORD`: Central Portal user token credentials.
-- `SIGNING_KEY_BASE64`: base64-encoded ASCII-armored private PGP key.
+- `SIGNING_KEY_BASE64`: base64-encoded ASCII-armored private PGP key. A raw ASCII-armored private key is also accepted.
 - `SIGNING_PASSWORD`: key passphrase.
 
 Keep the private key and token out of the repository. Use a macOS host with Xcode, Android SDK 37.1, and JDK 17 and 21 available to build all release targets.

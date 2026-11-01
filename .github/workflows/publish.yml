@@ -50,16 +50,27 @@ jobs:
         run: |
           python3 - <<'PYTHON'
           import base64
+          import binascii
           import os
           import uuid
 
           names = ["MAVEN_CENTRAL_USERNAME", "MAVEN_CENTRAL_PASSWORD", "SIGNING_KEY_BASE64", "SIGNING_PASSWORD"]
           if any(not os.environ.get(name) for name in names):
               raise SystemExit("Missing required Maven Central or signing secret")
+          key_secret = os.environ["SIGNING_KEY_BASE64"].strip()
+          if key_secret.startswith("-----BEGIN PGP PRIVATE KEY BLOCK-----"):
+              signing_key = key_secret
+          else:
+              try:
+                  signing_key = base64.b64decode("".join(key_secret.split()), validate=True).decode("utf-8")
+              except (ValueError, binascii.Error, UnicodeDecodeError):
+                  raise SystemExit("SIGNING_KEY_BASE64 must contain an ASCII-armored private PGP key, optionally encoded as base64") from None
+          if "-----BEGIN PGP PRIVATE KEY BLOCK-----" not in signing_key:
+              raise SystemExit("SIGNING_KEY_BASE64 does not contain an ASCII-armored private PGP key")
           values = {
               "ORG_GRADLE_PROJECT_mavenCentralUsername": os.environ["MAVEN_CENTRAL_USERNAME"],
               "ORG_GRADLE_PROJECT_mavenCentralPassword": os.environ["MAVEN_CENTRAL_PASSWORD"],
-              "ORG_GRADLE_PROJECT_signingInMemoryKey": base64.b64decode(os.environ["SIGNING_KEY_BASE64"], validate=True).decode(),
+              "ORG_GRADLE_PROJECT_signingInMemoryKey": signing_key,
               "ORG_GRADLE_PROJECT_signingInMemoryKeyPassword": os.environ["SIGNING_PASSWORD"],
           }
           with open(os.environ["GITHUB_ENV"], "a") as output:
