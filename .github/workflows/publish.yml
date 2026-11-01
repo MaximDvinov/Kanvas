@@ -71,7 +71,9 @@ jobs:
               encoded_key = encoded_key.replace("-", "+").replace("_", "/")
               encoded_key += "=" * (-len(encoded_key) % 4)
               try:
-                  signing_key = base64.b64decode(encoded_key, validate=True).decode("utf-8-sig")
+                  # Match the previous Gradle Base64.getMimeDecoder() behavior,
+                  # which ignores non-base64 characters in the stored secret.
+                  signing_key = base64.b64decode(encoded_key, validate=False).decode("utf-8-sig")
               except (ValueError, binascii.Error, UnicodeDecodeError):
                   raise SystemExit(
                       "SIGNING_KEY_BASE64 must contain an ASCII-armored private PGP key or base64 of that key; "
