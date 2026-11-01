@@ -7,7 +7,7 @@ The engine stays domain-neutral. Game rules, simulations, AI, economy, and app-s
 
 ## Status
 
-Current version: `0.2.0-alpha`
+Next release: `0.3.0-alpha`
 
 Supported targets:
 
@@ -22,13 +22,14 @@ Supported targets:
 | Module | Artifact | Purpose |
 | --- | --- | --- |
 | `:engine` | `io.github.maximdvinov:engine` | Core runtime, scene model, renderer API, assets, input, and Compose host. |
+| `:engineComposeDsl` | `io.github.maximdvinov:engineComposeDsl` | Compose-first declarative game DSL and host integration. |
 | `:enginePhysics` | `io.github.maximdvinov:enginePhysics` | Optional 2D physics primitives, broadphase, collision, and physics DSL. |
 | `:engineGravityBarnesHut` | `io.github.maximdvinov:engineGravityBarnesHut` | Optional Barnes-Hut n-body gravity simulation. |
 | `:engineWorldObjectsKit` | `io.github.maximdvinov:engineWorldObjectsKit` | Reusable templates for common 2D world objects. |
 
 ## Installation
 
-After the first Maven Central release, consumers only need `mavenCentral()`:
+After `0.3.0-alpha` is published, consumers can use `mavenCentral()`:
 
 ```kotlin
 repositories {
@@ -37,7 +38,7 @@ repositories {
 }
 
 dependencies {
-    implementation("io.github.maximdvinov:engine:0.2.0-alpha")
+    implementation("io.github.maximdvinov:engineComposeDsl:0.3.0-alpha")
 }
 ```
 
@@ -45,9 +46,9 @@ Optional extensions:
 
 ```kotlin
 dependencies {
-    implementation("io.github.maximdvinov:enginePhysics:0.2.0-alpha")
-    implementation("io.github.maximdvinov:engineGravityBarnesHut:0.2.0-alpha")
-    implementation("io.github.maximdvinov:engineWorldObjectsKit:0.2.0-alpha")
+    implementation("io.github.maximdvinov:enginePhysics:0.3.0-alpha")
+    implementation("io.github.maximdvinov:engineGravityBarnesHut:0.3.0-alpha")
+    implementation("io.github.maximdvinov:engineWorldObjectsKit:0.3.0-alpha")
 }
 ```
 
@@ -217,7 +218,7 @@ Add the physics module:
 
 ```kotlin
 dependencies {
-    implementation("io.github.maximdvinov:enginePhysics:0.2.0-alpha")
+    implementation("io.github.maximdvinov:enginePhysics:0.3.0-alpha")
 }
 ```
 
@@ -265,7 +266,7 @@ Useful commands:
 
 Library modules are configured for:
 
-- Maven Central staging via Sonatype Central Portal OSSRH compatibility API.
+- Maven Central via the Sonatype Central Portal.
 - GitHub Packages as a secondary package registry.
 - Local verification through `build/local-maven`.
 

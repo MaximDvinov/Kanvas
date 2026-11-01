@@ -6,6 +6,12 @@ The format is based on Keep a Changelog.
 
 ## [Unreleased]
 
+### Changed
+- Updated Kotlin to 2.4.21 and Compose Multiplatform to 1.12.2. Consumers must use compatible Kotlin and Compose versions.
+- Migrated the Android targets to the Android Gradle plugin for Kotlin Multiplatform and updated the Android build to SDK 37.1.
+- Exposed public module and Compose dependencies in published metadata so consumers can compile against the framework's API.
+- Migrated Maven Central publishing to the Central Portal using the Vanniktech Maven Publish plugin.
+
 ## [0.2.0-alpha] - 2026-06-27
 
 ### Added

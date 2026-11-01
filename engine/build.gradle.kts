@@ -7,8 +7,11 @@ plugins {
 
 kotlin {
     jvmToolchain(17)
-    androidTarget {
-        publishLibraryVariants("release")
+    android {
+        namespace = "com.kanvas.fx.engine"
+        compileSdk { version = release(37) { minorApiLevel = 1 } }
+        minSdk = 24
+        withHostTest {}
     }
     jvm()
     wasmJs { browser() }
@@ -17,24 +20,16 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-            implementation(compose.runtime)
-            implementation(compose.ui)
-            implementation(compose.foundation)
+            api(compose.runtime)
+            api(compose.ui)
+            api(compose.foundation)
         }
         androidMain.dependencies {
-            implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
-            implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
+            implementation("androidx.lifecycle:lifecycle-runtime-compose:2.11.0")
+            implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.11.0")
         }
         commonTest.dependencies {
             implementation(kotlin("test"))
         }
-    }
-}
-
-android {
-    namespace = "com.kanvas.fx.engine"
-    compileSdk = 35
-    defaultConfig {
-        minSdk = 24
     }
 }

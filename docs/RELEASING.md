@@ -1,163 +1,53 @@
 # Releasing Kanvas
 
-This project publishes the public library modules:
+The release includes these Maven coordinates under `io.github.maximdvinov`:
 
-- `io.github.maximdvinov:engine`
-- `io.github.maximdvinov:enginePhysics`
-- `io.github.maximdvinov:engineGravityBarnesHut`
-- `io.github.maximdvinov:engineWorldObjectsKit`
+- `engine`
+- `engineComposeDsl`
+- `enginePhysics`
+- `engineGravityBarnesHut`
+- `engineWorldObjectsKit`
 
-## Distribution Targets
+Each module includes Android, JVM, iOS arm64, iOS simulator arm64, and Wasm JS publications. Releases use the [Vanniktech Maven Publish plugin](https://vanniktech.github.io/gradle-maven-publish-plugin/central/) and the Sonatype Central Portal. GitHub Packages is a best-effort secondary destination.
 
-Maven Central is the primary public distribution target. GitHub Packages is kept as a secondary registry and must not block Central publishing.
+## Prerequisites
 
-Maven Central publishing uses Sonatype Central Portal through the OSSRH Staging compatibility endpoint:
+Register and verify the `io.github.maximdvinov` namespace in the Central Portal, generate a user token, and publish the signing key's public half to a key server. Configure these GitHub repository secrets:
 
-```text
-https://ossrh-staging-api.central.sonatype.com/service/local/staging/deploy/maven2/
-```
+- `MAVEN_CENTRAL_USERNAME` and `MAVEN_CENTRAL_PASSWORD`: Central Portal user token credentials.
+- `SIGNING_KEY_BASE64`: base64-encoded ASCII-armored private PGP key.
+- `SIGNING_PASSWORD`: key passphrase.
 
-After Gradle uploads the Maven artifacts, CI calls the Central Portal manual upload endpoint with automatic publishing enabled.
+Keep the private key and token out of the repository. Use a macOS host with Xcode, Android SDK 37.1, and JDK 17 and 21 available to build all release targets.
 
-## Required Sonatype Setup
-
-1. Create or sign in to a Sonatype Central Portal account.
-2. Create and verify the namespace for `io.github.maximdvinov`.
-3. Generate a Central Portal user token.
-4. Create a PGP key for artifact signing.
-
-Maven Central and GitHub Packages releases are immutable. If a bad version is released, publish a new version instead of trying to overwrite it.
-
-## Required GitHub Secrets
-
-Add these repository secrets:
-
-```text
-MAVEN_CENTRAL_USERNAME
-MAVEN_CENTRAL_PASSWORD
-SIGNING_KEY_BASE64
-SIGNING_PASSWORD
-```
-
-`MAVEN_CENTRAL_USERNAME` and `MAVEN_CENTRAL_PASSWORD` must be the Central Portal token username and token password, not the account password.
-
-`SIGNING_KEY_BASE64` must contain the base64-encoded ASCII-armored private PGP key. `SIGNING_PASSWORD` is the key passphrase.
-
-Generate `SIGNING_KEY_BASE64` locally:
+## Local checks
 
 ```bash
-gpg --batch --pinentry-mode loopback \
-  --passphrase "your-key-passphrase" \
-  --armor --export-secret-keys <KEY_ID> | base64 | tr -d '\n'
-```
-
-Plain multiline `SIGNING_KEY` is still supported for local use, but `SIGNING_KEY_BASE64` is preferred in GitHub Actions because it avoids broken multiline secret formatting.
-
-Optional repository variable:
-
-```text
-MAVEN_CENTRAL_NAMESPACE=io.github.maximdvinov
-```
-
-## Local Preflight
-
-Run tests for the main library modules:
-
-```bash
-./gradlew :engine:jvmTest :enginePhysics:jvmTest
-```
-
-Verify all publications locally:
-
-```bash
+./gradlew :engine:jvmTest :enginePhysics:jvmTest :engineComposeDsl:jvmTest \
+  :engine:testAndroidHostTest :enginePhysics:testAndroidHostTest
 ./gradlew publishAllPublicationsToLocalBuildRepository
+./gradlew -p tests/publication-consumer compileKotlin
 ```
 
-Artifacts are written to:
+The local repository is `build/local-maven`. Local publication does not require a signing key; Central publication does. Check the generated POM and Gradle module metadata, including target variants and inter-module dependencies, before releasing.
 
-```text
-build/local-maven
-```
+## Release
 
-## Signed Local Verification
+1. Select a new version that is not already published. Set `VERSION_NAME` in `gradle.properties`, finalize the changelog, and run the checks on the exact commit to be released.
+2. Review the version, changelog, commit, artifact coordinates, and validation results before publishing.
+3. Push the matching tag, for example `v1.2.3` for `VERSION_NAME=1.2.3`. Do not push all local tags. The Publish workflow rejects a tag that does not match the version.
+4. The workflow checks tests and local publications, signs and uploads the artifacts to Central Portal, and waits for publication. It then attempts GitHub Packages independently. A manual workflow run on a branch only runs checks.
+5. Verify every module and platform artifact resolves from Maven Central, and check the Central Portal deployment and workflow. Create the GitHub Release with the finalized notes.
+6. Start the next development version and add an `Unreleased` changelog section.
 
-To verify signing without publishing remotely:
+Maven Central releases are immutable. If publication is partial or its result is uncertain, inspect the Portal deployment and published coordinates before taking another action; do not rerun the upload blindly.
+
+## Local Central publication
+
+Use only as an alternative to the tag-triggered workflow. Provide the plugin's standard `ORG_GRADLE_PROJECT_mavenCentralUsername`, `ORG_GRADLE_PROJECT_mavenCentralPassword`, `ORG_GRADLE_PROJECT_signingInMemoryKey`, and `ORG_GRADLE_PROJECT_signingInMemoryKeyPassword` environment variables securely. After the same review and checks, run:
 
 ```bash
-export SIGNING_KEY="$(cat private-key.asc)"
-export SIGNING_PASSWORD="your-key-passphrase"
-
-./gradlew publishAllPublicationsToLocalBuildRepository
+./gradlew publishAndReleaseToMavenCentral -PmavenCentralDeploymentValidation=PUBLISHED
 ```
 
-Signing is required for Maven Central publishing tasks and optional for local publication tasks.
-
-## Release Version
-
-The published version is controlled by `VERSION_NAME` in `gradle.properties`:
-
-```properties
-VERSION_NAME=0.2.0-alpha
-```
-
-Before publishing, move changelog entries from `Unreleased` into a dated version section:
-
-```md
-## [0.2.0-alpha] - YYYY-MM-DD
-```
-
-## Publish from GitHub Actions
-
-Create and push a version tag:
-
-```bash
-git tag v0.2.0-alpha
-git push origin main --tags
-```
-
-The `Publish` workflow will:
-
-1. Run JVM tests for the core library modules.
-2. Verify local Maven publications.
-3. Publish signed artifacts to Maven Central staging.
-4. Upload the staging repository into the Central Portal and publish automatically after validation.
-5. Publish artifacts to GitHub Packages as a best-effort secondary registry.
-
-After the workflow completes, verify the deployment status in the Central Portal.
-
-## Manual Maven Central Publish
-
-Use this only if GitHub Actions is unavailable:
-
-```bash
-export MAVEN_CENTRAL_USERNAME="token-username"
-export MAVEN_CENTRAL_PASSWORD="token-password"
-export SIGNING_KEY_BASE64="$(base64 < private-key.asc | tr -d '\n')"
-export SIGNING_PASSWORD="your-key-passphrase"
-
-./gradlew publishAllPublicationsToMavenCentralStagingRepository
-```
-
-Then upload the staging repository into the Central Portal:
-
-```bash
-token="$(printf '%s:%s' "$MAVEN_CENTRAL_USERNAME" "$MAVEN_CENTRAL_PASSWORD" | base64 | tr -d '\n')"
-
-curl --fail-with-body \
-  -X POST \
-  -H "Authorization: Bearer $token" \
-  "https://ossrh-staging-api.central.sonatype.com/manual/upload/defaultRepository/io.github.maximdvinov?publishing_type=automatic"
-```
-
-## Post-release
-
-1. Verify the artifacts resolve from `mavenCentral()`.
-2. Create a GitHub Release from the changelog section.
-3. Add a fresh `Unreleased` section to `CHANGELOG.md`.
-4. Bump `VERSION_NAME` for the next development cycle if needed.
-
-## References
-
-- Sonatype Central Portal registration: `https://central.sonatype.org/register/central-portal/`
-- Sonatype publishing requirements: `https://central.sonatype.org/publish/requirements/`
-- Sonatype OSSRH Staging compatibility API: `https://central.sonatype.org/publish/publish-portal-ossrh-staging-api/`
+Consult the [plugin's Central Portal guide](https://vanniktech.github.io/gradle-maven-publish-plugin/central/) for token and signing setup.

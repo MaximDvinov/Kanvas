@@ -10,7 +10,12 @@ plugins {
 kotlin {
     jvmToolchain(17)
     jvm()
-    androidTarget()
+    android {
+        namespace = "com.kanvas.fx.flappySample.shared"
+        compileSdk { version = release(37) { minorApiLevel = 1 } }
+        minSdk = 24
+        withHostTest {}
+    }
     wasmJs { browser() }
     iosArm64()
     iosSimulatorArm64()
@@ -29,13 +34,5 @@ kotlin {
         commonTest.dependencies {
             implementation(kotlin("test"))
         }
-    }
-}
-
-android {
-    namespace = "com.kanvas.fx.flappySample.shared"
-    compileSdk = 35
-    defaultConfig {
-        minSdk = 24
     }
 }

@@ -1,8 +1,6 @@
 import org.gradle.api.publish.PublishingExtension
-import org.gradle.api.publish.maven.MavenPublication
-import org.gradle.jvm.tasks.Jar
+import com.vanniktech.maven.publish.MavenPublishBaseExtension
 import org.gradle.plugins.signing.SigningExtension
-import java.util.Base64
 
 plugins {
     alias(libs.plugins.kotlin.multiplatform) apply false
@@ -11,6 +9,7 @@ plugins {
     alias(libs.plugins.compose.hot.reload) apply false
     alias(libs.plugins.android.application) apply false
     alias(libs.plugins.android.library) apply false
+    alias(libs.plugins.maven.publish) apply false
 }
 
 val kanvasLibraryModules = setOf(
@@ -30,8 +29,7 @@ subprojects {
     if (path !in kanvasLibraryModules) return@subprojects
 
     pluginManager.withPlugin("org.jetbrains.kotlin.multiplatform") {
-        pluginManager.apply("maven-publish")
-        pluginManager.apply("signing")
+        pluginManager.apply("com.vanniktech.maven.publish")
 
         val moduleDescription = when (path) {
             ":engine" -> "Core Kotlin Multiplatform 2D runtime for Compose applications."
@@ -44,14 +42,6 @@ subprojects {
 
         extensions.configure<PublishingExtension>("publishing") {
             repositories {
-                maven {
-                    name = "MavenCentralStaging"
-                    url = uri("https://ossrh-staging-api.central.sonatype.com/service/local/staging/deploy/maven2/")
-                    credentials {
-                        username = providers.environmentVariable("MAVEN_CENTRAL_USERNAME").orNull
-                        password = providers.environmentVariable("MAVEN_CENTRAL_PASSWORD").orNull
-                    }
-                }
                 maven {
                     name = "GitHubPackages"
                     val repository = providers.environmentVariable("GITHUB_REPOSITORY")
@@ -68,64 +58,41 @@ subprojects {
                 }
             }
 
-            publications.withType<MavenPublication>().configureEach {
-                val publicationName = name
-                val publicationJavadocJar = tasks.register<Jar>("${publicationName}JavadocJar") {
-                    archiveBaseName.set("${project.name}-$publicationName")
-                    archiveClassifier.set("javadoc")
-                    from(rootProject.file("README.md")) {
-                        into("META-INF")
+        }
+
+        extensions.configure<MavenPublishBaseExtension>("mavenPublishing") {
+            publishToMavenCentral()
+            signAllPublications()
+            pom {
+                name.set("Kanvas ${project.name}")
+                description.set(moduleDescription)
+                url.set("https://github.com/MaximDvinov/Kanvas")
+                licenses {
+                    license {
+                        name.set("MIT License")
+                        url.set("https://opensource.org/license/mit/")
                     }
                 }
-
-                artifact(publicationJavadocJar)
-                pom {
-                    name.set("Kanvas ${project.name}")
-                    description.set(moduleDescription)
+                developers {
+                    developer {
+                        id.set("MaximDvinov")
+                        name.set("Maxim Dvinov")
+                    }
+                }
+                scm {
+                    connection.set("scm:git:https://github.com/MaximDvinov/Kanvas.git")
+                    developerConnection.set("scm:git:ssh://git@github.com/MaximDvinov/Kanvas.git")
                     url.set("https://github.com/MaximDvinov/Kanvas")
-                    licenses {
-                        license {
-                            name.set("MIT License")
-                            url.set("https://opensource.org/license/mit/")
-                        }
-                    }
-                    developers {
-                        developer {
-                            id.set("MaximDvinov")
-                            name.set("Maxim Dvinov")
-                        }
-                    }
-                    scm {
-                        connection.set("scm:git:https://github.com/MaximDvinov/Kanvas.git")
-                        developerConnection.set("scm:git:ssh://git@github.com/MaximDvinov/Kanvas.git")
-                        url.set("https://github.com/MaximDvinov/Kanvas")
-                    }
                 }
             }
         }
 
         extensions.configure<SigningExtension>("signing") {
-            val signingKeyBase64 = providers.environmentVariable("SIGNING_KEY_BASE64").orNull
-            val signingKey = if (!signingKeyBase64.isNullOrBlank()) {
-                String(Base64.getMimeDecoder().decode(signingKeyBase64))
-            } else {
-                providers.environmentVariable("SIGNING_KEY")
-                    .orElse(providers.gradleProperty("signingInMemoryKey"))
-                    .orNull
-            }
-            val signingPassword = providers.environmentVariable("SIGNING_PASSWORD")
-                .orElse(providers.gradleProperty("signingInMemoryKeyPassword"))
-                .orNull
-
             setRequired {
                 gradle.taskGraph.allTasks.any {
-                    it.name.contains("MavenCentralStaging")
+                    it.name.contains("MavenCentral") || it.name.contains("GitHubPackages")
                 }
             }
-            if (!signingKey.isNullOrBlank()) {
-                useInMemoryPgpKeys(signingKey, signingPassword)
-            }
-            sign(extensions.getByType(PublishingExtension::class.java).publications)
         }
     }
 }

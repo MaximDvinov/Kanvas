@@ -5,8 +5,11 @@ plugins {
 
 kotlin {
     jvmToolchain(17)
-    androidTarget {
-        publishLibraryVariants("release")
+    android {
+        namespace = "com.kanvas.fx.physics"
+        compileSdk { version = release(37) { minorApiLevel = 1 } }
+        minSdk = 24
+        withHostTest {}
     }
     jvm()
     wasmJs { browser() }
@@ -15,19 +18,11 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-            implementation(libs.compose.ui)
-            implementation(project(":engine"))
+            api(libs.compose.ui)
+            api(project(":engine"))
         }
         commonTest.dependencies {
             implementation(kotlin("test"))
         }
-    }
-}
-
-android {
-    namespace = "com.kanvas.fx.physics"
-    compileSdk = 35
-    defaultConfig {
-        minSdk = 24
     }
 }

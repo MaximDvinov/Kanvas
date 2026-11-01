@@ -5,8 +5,10 @@ plugins {
 
 kotlin {
     jvmToolchain(17)
-    androidTarget {
-        publishLibraryVariants("release")
+    android {
+        namespace = "com.kanvas.fx.worldkit"
+        compileSdk { version = release(37) { minorApiLevel = 1 } }
+        minSdk = 24
     }
     jvm()
     wasmJs { browser() }
@@ -15,17 +17,9 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-            implementation(libs.compose.ui)
-            implementation(project(":engine"))
-            implementation(project(":enginePhysics"))
+            api(libs.compose.ui)
+            api(project(":engine"))
+            api(project(":enginePhysics"))
         }
-    }
-}
-
-android {
-    namespace = "com.kanvas.fx.worldkit"
-    compileSdk = 35
-    defaultConfig {
-        minSdk = 24
     }
 }

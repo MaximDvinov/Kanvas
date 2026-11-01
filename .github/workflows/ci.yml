@@ -17,13 +17,23 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 21
+          java-version: |
+            17
+            21
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK
+        run: sdkmanager "platforms;android-37.1"
 
       - name: Test library JVM targets
         run: ./gradlew :engine:jvmTest :enginePhysics:jvmTest
 
       - name: Verify library publications
         run: ./gradlew publishAllPublicationsToLocalBuildRepository
+
+      - name: Compile a library consumer
+        run: ./gradlew -p tests/publication-consumer compileKotlin

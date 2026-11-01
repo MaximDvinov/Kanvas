@@ -10,7 +10,11 @@ plugins {
 kotlin {
     jvmToolchain(17)
     jvm()
-    androidTarget()
+    android {
+        namespace = "com.kanvas.fx.planetSample.shared"
+        compileSdk { version = release(37) { minorApiLevel = 1 } }
+        minSdk = 24
+    }
     wasmJs { browser() }
     iosArm64()
     iosSimulatorArm64()
@@ -27,13 +31,5 @@ kotlin {
             implementation(project(":enginePhysics"))
             implementation(project(":engineWorldObjectsKit"))
         }
-    }
-}
-
-android {
-    namespace = "com.kanvas.fx.planetSample.shared"
-    compileSdk = 35
-    defaultConfig {
-        minSdk = 24
     }
 }

@@ -5,8 +5,10 @@ plugins {
 
 kotlin {
     jvmToolchain(17)
-    androidTarget {
-        publishLibraryVariants("release")
+    android {
+        namespace = "com.kanvas.fx.gravity"
+        compileSdk { version = release(37) { minorApiLevel = 1 } }
+        minSdk = 24
     }
     jvm()
     wasmJs { browser() }
@@ -15,16 +17,8 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
-            implementation(libs.compose.ui)
-            implementation(project(":engine"))
+            api(libs.compose.ui)
+            api(project(":engine"))
         }
-    }
-}
-
-android {
-    namespace = "com.kanvas.fx.gravity"
-    compileSdk = 35
-    defaultConfig {
-        minSdk = 24
     }
 }
