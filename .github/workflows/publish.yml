@@ -57,14 +57,26 @@ jobs:
           names = ["MAVEN_CENTRAL_USERNAME", "MAVEN_CENTRAL_PASSWORD", "SIGNING_KEY_BASE64", "SIGNING_PASSWORD"]
           if any(not os.environ.get(name) for name in names):
               raise SystemExit("Missing required Maven Central or signing secret")
-          key_secret = os.environ["SIGNING_KEY_BASE64"].strip()
-          if key_secret.startswith("-----BEGIN PGP PRIVATE KEY BLOCK-----"):
-              signing_key = key_secret
+          key_secret = os.environ["SIGNING_KEY_BASE64"].strip().lstrip("\ufeff")
+          if len(key_secret) >= 2 and key_secret[0] == key_secret[-1] and key_secret[0] in "\"'":
+              key_secret = key_secret[1:-1].strip()
+          key_secret = key_secret.replace("\\r\\n", "\n").replace("\\n", "\n").replace("\\r", "\n")
+          armor_header = "-----BEGIN PGP PRIVATE KEY BLOCK-----"
+          if armor_header in key_secret:
+              signing_key = key_secret[key_secret.index(armor_header):]
           else:
+              encoded_key = "".join(key_secret.split())
+              if encoded_key.startswith("data:") and "," in encoded_key:
+                  encoded_key = encoded_key.split(",", 1)[1]
+              encoded_key = encoded_key.replace("-", "+").replace("_", "/")
+              encoded_key += "=" * (-len(encoded_key) % 4)
               try:
-                  signing_key = base64.b64decode("".join(key_secret.split()), validate=True).decode("utf-8")
+                  signing_key = base64.b64decode(encoded_key, validate=True).decode("utf-8-sig")
               except (ValueError, binascii.Error, UnicodeDecodeError):
-                  raise SystemExit("SIGNING_KEY_BASE64 must contain an ASCII-armored private PGP key, optionally encoded as base64") from None
+                  raise SystemExit(
+                      "SIGNING_KEY_BASE64 must contain an ASCII-armored private PGP key or base64 of that key; "
+                      "check that the secret is the private key export, not the public key"
+                  ) from None
           if "-----BEGIN PGP PRIVATE KEY BLOCK-----" not in signing_key:
               raise SystemExit("SIGNING_KEY_BASE64 does not contain an ASCII-armored private PGP key")
           values = {
